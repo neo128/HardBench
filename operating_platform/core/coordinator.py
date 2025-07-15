@@ -30,7 +30,7 @@ from operating_platform.dataset.dorobot_dataset import *
 from operating_platform.core.daemon import Daemon
 from operating_platform.core.record import Record, RecordConfig
 
-DEFAULT_FPS = 10
+DEFAULT_FPS = 30
 
 @cache
 def is_headless():
@@ -124,6 +124,8 @@ class Coordinator:
         self.last_heartbeat_time = 0
         self.heartbeat_interval = 2  # 心跳间隔(秒)
 
+        self.recording = False
+
         self.cameras: dict[str, int] = {
             "image_top": 1,
             "image_depth_top": 2,
@@ -201,6 +203,15 @@ class Coordinator:
             print("处理开始采集命令...")
             msg = data.get('msg')
 
+            if self.recording == True:
+                # self.send_response('start_collection', "fail")
+
+                self.record.stop(save=False)
+                self.recording = False
+
+
+            self.recording = True
+
             task_id = msg.get('task_id')
             task_name = msg.get('task_name')
             task_data_id = msg.get('task_data_id')
@@ -242,7 +253,8 @@ class Coordinator:
             print("处理完成采集命令...")
 
             data = self.record.stop(save=True)
-            
+            self.recording = False
+
             # 准备响应数据
             response_data = {
                 "msg": "success",
@@ -256,7 +268,8 @@ class Coordinator:
             print("处理丢弃采集命令...")
 
             self.record.stop(save=False)
-            
+            self.recording = False
+
             # 发送响应
             self.send_response('discard_collection', "success")
         
@@ -364,12 +377,14 @@ def main(cfg: ControlPipelineConfig):
             if observation is not None:
                 image_keys = [key for key in observation if "image" in key]
                 for i, key in enumerate(image_keys, start=1):
+                    img = cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR) 
+
                     name = key[len("observation.images."):]
-                    coordinator.update_stream(name, observation[key].numpy())
+                    coordinator.update_stream(name, img)
 
                     if not is_headless():
                         # print(f"will show image, name:{name}")
-                        cv2.imshow(name, observation[key].numpy())
+                        cv2.imshow(name, img)
                         cv2.waitKey(1)
                         # print("show image succese")
                     
