@@ -1,0 +1,29 @@
+[project]
+name = "dora-realman"
+version = "0.1.0"
+authors = [{ name = "Xu Runtian", email = "xuruntian03@163.com" }]
+description = "Dora Node for using RealMan"
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+
+dependencies = [
+    "dora-rs-cli (>=0.3.11,<0.4.0)",
+    "dora-rerun (>=0.3.11,<0.4.0)",
+    "pyzmq (>=27.0.0,<28.0.0)",
+    "Robotic_Arm == 1.0.4.1",
+    "numpy < 2.0.0",
+    "opencv-python (<4.12.0)",
+    "pyrealsense2 (>=2.55.1.6486,<3.0.0.0)",
+]
+
+
+[tool.poetry]
+packages = [
+    { include = "components", from = "./" },
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

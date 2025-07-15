@@ -1,0 +1,43 @@
+nodes:
+  - id: camera_top
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image
+      - image_depth
+    env:
+      DEVICE_SERIAL: 103422070650 
+
+  - id: camera_right
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image
+      - image_depth
+    env:
+      DEVICE_SERIAL: 408122071269
+
+  - id: camera_left
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image
+      - image_depth
+    env:
+      DEVICE_SERIAL: 408322072980
+
+
+  - id: zeromq
+    path: ../dora_zeromq.py
+    inputs: 
+      image_top: camera_top/image
+      # image_depth_top: camera_top/image_depth
+      image_right: camera_right/image
+      # image_depth_right: camera_right/image_depth
+      image_left: camera_left/image
+      # image_depth_left: camera_left/image_depth
+
+
