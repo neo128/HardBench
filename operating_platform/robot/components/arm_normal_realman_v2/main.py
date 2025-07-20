@@ -5,7 +5,7 @@ from Robotic_Arm.rm_robot_interface import *
 
 
 id = os.getenv("ARM_ID", "arm_right")       # ARM_ID: Arm identifier; defaults to "arm_right" if not set
-ip = os.getenv("ARM_IP", "192.168.1.19")    # ARM_IP: Connection IP address; defaults to "192.168.1.18" if not set
+ip = os.getenv("ARM_IP", "192.168.1.18")    # ARM_IP: Connection IP address; defaults to "192.168.1.18" if not set
 port = int(os.getenv("ARM_PORT", "8080"))   # ARM_PORT: Connection port number; defaults to 8080 if not set
 
 start_pose_str = os.getenv("START_POSE", "0.0, 0.0, 0.0, 0.0, 0.0, 0.0")
@@ -19,13 +19,18 @@ node = Node()
 
 
 class RealmanArm:
-    def __init__(self):
+    def __init__(self, ip, port, start_pose, joint_p_limit, joint_n_limit):
         self.arm = RoboticArm(rm_thread_mode_e.RM_TRIPLE_MODE_E)
-        
-        handle = self.arm.rm_create_robot_arm(ip, port)
+        self.ip = ip
+        self.port = port
+        self.start_pose = start_pose
+        self.joint_p_limit = joint_p_limit
+        self.joint_n_limit = joint_n_limit
+
+        handle = self.arm.rm_create_robot_arm(self.ip, self.port)
         print("Arm ID: ", id)
         print("Arm handle ID: ", handle.id)
-        print(f"Arm Connected On: {ip}:{port}")
+        print(f"Arm Connected On: {self.ip}:{self.port}")
         software_info = self.arm.rm_get_arm_software_info()
         if software_info[0] == 0:
             print("\n================== Arm Software Information ==================")
@@ -41,6 +46,7 @@ class RealmanArm:
         self.arm.rm_set_tool_voltage(3)#设置末端工具接口电压为24v
         self.arm.rm_set_modbus_mode(1, 115200, 5) #打开modbus模式
         self.peripheral = rm_peripheral_read_write_params_t(1, 40000, 1, 1)#配置串口参数
+        print(self.peripheral)
         self.arm.rm_write_single_register(self.peripheral, 100)#初始化夹爪为打开状态
         
         self.is_connected = True
@@ -52,7 +58,7 @@ class RealmanArm:
     
     def movej_canfd(self, joint):
         clipped_joint = max(joint_n_limit[:7], min(joint_p_limit[:7], joint[:7]))
-        self.arm.rm_movej_canfd(clipped_joint, True, 0, 1, 50)
+        self.arm.rm_movej_canfd(clipped_joint, True, 0)
 
     def write_single_register(self, gripper):
         clipped_gripper = max(0, min(100, gripper))
@@ -68,6 +74,9 @@ class RealmanArm:
     def disconnect(self):
         self.arm.rm_close_modbus_mode(1)
         self.is_connected = False
+    def read_joint_eef_pose(self):
+        flag, robot_info = self.arm.rm_get_current_arm_state()
+        return robot_info['pose']
 
 
 def main():
@@ -89,9 +98,16 @@ def main():
                 gripper = event["value"]
                 main_arm.write_single_register(gripper)
 
-            if event["id"] == "read-joint":
-                read_joint = main_arm.read_joint_degree()
-                node.send_output("read-joint", pa.array(read_joint))
+            # if event["id"] == "read-joint":
+            #     read_joint = main_arm.read_joint_degree()
+            #     node.send_output("read-joint", pa.array(read_joint))
+            if event["id"] == "tick":
+                jointstate = main_arm.read_joint_degree()
+                node.send_output("jointstate", pa.array(jointstate[:-1]))
+                gripper = jointstate[-1:]
+                node.send_output("gripper", pa.array(gripper))
+                pose = main_arm.read_joint_eef_pose()
+                node.send_output("pose", pa.array(pose))
 
             if event["id"] == "stop":
                 main_arm.stop()

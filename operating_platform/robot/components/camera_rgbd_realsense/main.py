@@ -26,7 +26,7 @@ def main():
 
     # Serial list
     serials = [device.get_info(rs.camera_info.serial_number) for device in devices]
-    if device_serial and (device_serial in serials):
+    if device_serial and (device_serial not in serials):
         raise ConnectionError(
             f"Device with serial {device_serial} not found within: {serials}.",
         )
@@ -65,7 +65,6 @@ def main():
             if event_id == "tick":
                 frames = pipeline.wait_for_frames()
                 aligned_frames = align.process(frames)
-
                 aligned_depth_frame = aligned_frames.get_depth_frame()
                 color_frame = aligned_frames.get_color_frame()
                 if not aligned_depth_frame or not color_frame:
@@ -112,7 +111,6 @@ def main():
                     pa.array(scaled_depth_image.ravel()),
                     metadata,
                 )
-
         elif event_type == "ERROR":
             raise RuntimeError(event["error"])
 

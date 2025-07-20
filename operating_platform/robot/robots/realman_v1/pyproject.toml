@@ -5,7 +5,7 @@ authors = [{ name = "Xu Runtian", email = "xuruntian03@163.com" }]
 description = "Dora Node for using RealMan"
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.9,<3.14"
 
 dependencies = [
     "dora-rs-cli (>=0.3.11,<0.4.0)",

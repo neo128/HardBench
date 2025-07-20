@@ -39,8 +39,7 @@ recv_images = {}  # 缓存每个 event_id 的最新帧
 recv_jointstats = {} 
 recv_pose = {}
 recv_gripper = {}
-lock = threading.Lock()  # 线程锁
-
+lock = threading.Lock()
 def recv_server():
     """接收数据线程"""
     while running_server:
@@ -49,23 +48,21 @@ def recv_server():
             message_parts = socket.recv_multipart()
             if len(message_parts) < 2:
                 continue  # 协议错误
-
+                
             event_id = message_parts[0].decode('utf-8')
             buffer_bytes = message_parts[1]
-
             if 'image' in event_id:
                 # 解码图像
                 img_array = np.frombuffer(buffer_bytes, dtype=np.uint8)
-                frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                frame = img_array.reshape((480, 640, 3))  # 已经是 RGB 格式
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                
                 if frame is not None:
                     with lock:
                         # print(f"Received event_id = {event_id}")
                         recv_images[event_id] = frame
 
-            if 'jointstat' in event_id:
-                joint_array = np.frombuffer(buffer_bytes, dtype=np.float32)
+            if 'jointstate' in event_id:
+                joint_array = np.frombuffer(buffer_bytes, dtype=np.float64)
                 if joint_array is not None:
                     with lock:
                         # print(f"Received event_id = {event_id}")
@@ -73,17 +70,16 @@ def recv_server():
                         recv_jointstats[event_id] = joint_array
 
             if 'pose' in event_id:
-                pose_array = np.frombuffer(buffer_bytes, dtype=np.float32)
+                pose_array = np.frombuffer(buffer_bytes, dtype=np.float64)
                 if pose_array is not None:
                     with lock:
                         recv_pose[event_id] = pose_array
 
             if 'gripper' in event_id:
-                gripper_array = np.frombuffer(buffer_bytes, dtype=np.float32)
+                gripper_array = np.frombuffer(buffer_bytes, dtype=np.float64)
                 if gripper_array is not None:
                     with lock:
                         recv_gripper[event_id] = gripper_array
-
 
         except zmq.Again:
             # 接收超时，继续循环
@@ -140,28 +136,39 @@ class RealmanManipulator:
         self.robot_type = self.config.type
         # 需要修改
         self.follower_arms = {}
-        self.follower_arms["left"] = self.config.left_arm_config.motors
-        self.follower_arms["right"] = self.config.right_arm_config.motors
+        self.follower_arms["left"] = self.config.left_leader_arm.motors
+        self.follower_arms["right"] =self.config.right_leader_arm.motors
 
-        self.camaers = make_cameras_from_configs(self.config.cameras)
-
-        recv_thread = threading.Thread(target=recv_server, daemon=True)
+        self.cameras = make_cameras_from_configs(self.config.cameras)
+        recv_thread = threading.Thread(target=recv_server,daemon=True)
         recv_thread.start()
 
         self.is_connected = False
         self.logs = {}
         self.frame_counter = 0  # 帧计数器
 
-
-
+        
     def get_motor_names(self, arm: dict[str, dict]) -> list:
         return [f"{arm}_{motor}" for arm, motors in arm.items() for motor in motors]
 
-
+    @property
+    def camera_features(self) -> dict:
+        cam_ft = {}
+        for cam_key, cam in self.cameras.items():
+            key = f"observation.images.{cam_key}"
+            cam_ft[key] = {
+                "shape": (cam.height, cam.width, cam.channels),
+                "names": ["height", "width", "channels"],
+                "info": None,
+            }
+        return cam_ft
+    
+    
     @property
     def motor_features(self) -> dict:
         action_names = self.get_motor_names(self.follower_arms)
         state_names = self.get_motor_names(self.follower_arms)
+        print(f"期望的状态名字数量{state_names}")
         return {
             "action": {
                 "dtype": "float32",
@@ -183,7 +190,6 @@ class RealmanManipulator:
             # 检查是否已获取所有摄像头的图像
             if all(name in recv_images for name in self.cameras):
                 break
-
             # 超时检测
             if time.perf_counter() - start_time > timeout:
                 raise TimeoutError("等待摄像头图像超时")
@@ -209,6 +215,8 @@ class RealmanManipulator:
 
         start_time = time.perf_counter()
         while True:
+            for key in recv_pose: 
+                print(key)
             if any(
                 any(name in key for key in recv_pose)
                 for name in self.follower_arms
