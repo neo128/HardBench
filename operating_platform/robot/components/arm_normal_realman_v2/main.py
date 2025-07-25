@@ -43,11 +43,11 @@ class RealmanArm:
         else:
             print("\nFailed to get arm software information, Error code: ", software_info[0], "\n")
 
-        self.arm.rm_set_tool_voltage(3)#设置末端工具接口电压为24v
-        self.arm.rm_set_modbus_mode(1, 115200, 5) #打开modbus模式
-        self.peripheral = rm_peripheral_read_write_params_t(1, 40000, 1, 1)#配置串口参数
-        print(self.peripheral)
-        self.arm.rm_write_single_register(self.peripheral, 100)#初始化夹爪为打开状态
+        # self.arm.rm_set_tool_voltage(3)#设置末端工具接口电压为24v
+        # self.arm.rm_set_modbus_mode(1, 115200, 5) #打开modbus模式
+        # self.peripheral = rm_peripheral_read_write_params_t(1, 40000, 1, 1)#配置串口参数
+        # print(self.peripheral)
+        # self.arm.rm_write_single_register(self.peripheral, 100)#初始化夹爪为打开状态
         
         self.is_connected = True
         self.logs = {}
@@ -86,17 +86,17 @@ def main():
         event_type = event["type"]
 
         if event_type == "INPUT":
-            if event["id"] == "movej-cmd":
-                joint = event["value"].to_pylist()
-                main_arm.movej_cmd(joint)
+            # if event["id"] == "movej-cmd":
+            #     joint = event["value"].to_pylist()
+            #     main_arm.movej_cmd(joint)
                 
-            if event["id"] == "movej":
-                joint = event["value"].to_pylist()
-                main_arm.movej_canfd(joint)
+            # if event["id"] == "movej":
+            #     joint = event["value"].to_pylist()
+            #     main_arm.movej_canfd(joint)
 
-            if event["id"] == "gripper":
-                gripper = event["value"]
-                main_arm.write_single_register(gripper)
+            # if event["id"] == "gripper":
+            #     gripper = event["value"]
+            #     main_arm.write_single_register(gripper)
 
             # if event["id"] == "read-joint":
             #     read_joint = main_arm.read_joint_degree()
@@ -108,7 +108,6 @@ def main():
                 node.send_output("gripper", pa.array(gripper))
                 pose = main_arm.read_joint_eef_pose()
                 node.send_output("pose", pa.array(pose))
-
             if event["id"] == "stop":
                 main_arm.stop()
         

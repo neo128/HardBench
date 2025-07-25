@@ -13,6 +13,7 @@ import torch
 import torchvision
 from datasets.features.features import register_feature
 from PIL import Image
+import platform
 
 
 def get_available_encoders():
@@ -167,94 +168,276 @@ def decode_video_frames_torchvision(
 
     assert len(timestamps) == len(closest_frames)
     return closest_frames
+test = False
+if test:
+    def encode_video_frames(
+        imgs_dir: Path | str,
+        video_path: Path | str,
+        fps: int,
+        vcodec: Literal["libopenh264", "libx264", "h264_omx", "h264_v4l2m2m", "h264_vaapi", 
+                    "h264_nvenc", "hevc_nvenc", "av1_nvenc"] = "h264_nvenc",  # 新增NVENC选项
+        pix_fmt: str = "yuv420p",
+        g: int | None = None,
+        crf: int | None = 25,
+        fast_decode: int = 0,
+        log_level: Optional[str] = "error",
+        overwrite: bool = False,
+    ) -> None:
+        """优化版视频编码函数，支持 NVENC 硬件编码器（NVIDIA Jetson 专用）"""
+        print(f"当前帧率为 {fps}")
+        # 确保编码器列表已加载
+        _ensure_encoders_loaded()
+        available_encoders = _AVAILABLE_ENCODERS
 
+        # 获取系统架构信息（判断是否为 NVIDIA Jetson 设备）
+        arch = platform.machine()
+        is_aarch64 = arch == "aarch64"
+        is_nvidia = "nvenc" in str(available_encoders)  # 检测是否有NVENC编码器
 
-def encode_video_frames(
+        # 用户指定的编码器是否可用
+        if vcodec in available_encoders:
+            # 在NVIDIA设备上优先确认NVENC可用性
+            if is_nvidia and vcodec in ["h264_v4l2m2m", "h264_omx"]:
+                warnings.warn(f"检测到NVIDIA设备，建议使用 {vcodec.replace('v4l2m2m', 'nvenc')} 获得更好性能")
+        else:
+            # 自动选择编码器（NVIDIA设备优先NVENC）
+            if is_nvidia:
+                # NVIDIA设备硬件编码器优先级：NVENC > v4l2m2m > vaapi > omx
+                hardware_encoders = ["h264_nvenc", "hevc_nvenc", "av1_nvenc", 
+                                    "h264_v4l2m2m", "h264_vaapi", "h264_omx"]
+            elif is_aarch64:
+                # 非NVIDIA aarch64设备（如其他ARM开发板）
+                hardware_encoders = ["h264_v4l2m2m", "h264_vaapi", "h264_omx"]
+            else:
+                # x86设备
+                hardware_encoders = ["h264_omx", "h264_vaapi", "h264_v4l2m2m"]
+            
+            # 筛选可用编码器
+            supported_candidates = set(hardware_encoders + ["libx264", "libopenh264"]) & set(available_encoders)
+            if not supported_candidates:
+                raise ValueError("无可用编码器，请检查FFmpeg安装配置")
+
+            # 选择最优编码器
+            selected_vcodec = None
+            for encoder in hardware_encoders + ["libx264", "libopenh264"]:
+                if encoder in supported_candidates:
+                    selected_vcodec = encoder
+                    break
+
+            # 提示编码器类型
+            if selected_vcodec in hardware_encoders:
+                print(f"使用硬件编码器: {selected_vcodec} (加速编码)")
+            else:
+                warnings.warn(f"使用软件编码器: {selected_vcodec}. 建议启用硬件加速")
+            vcodec = selected_vcodec
+
+        video_path = Path(video_path)
+        video_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # 基础FFmpeg参数
+        ffmpeg_args = OrderedDict([
+            ("-f", "image2"),
+            ("-r", str(fps)),
+            ("-i", str(Path(imgs_dir) / "frame_%06d.jpg")),  # 输入图片路径格式
+            ("-vf", f"format={pix_fmt},scale=trunc(iw/2)*2:trunc(ih/2)*2"),  # 确保宽高为偶数
+            ("-vcodec", vcodec),
+            ("-pix_fmt", pix_fmt),
+        ])
+
+        # 编码器特定参数配置
+        # 1. NVENC编码器（h264_nvenc / hevc_nvenc / av1_nvenc）
+        if vcodec in ["h264_nvenc", "hevc_nvenc", "av1_nvenc"]:
+            # 关键帧间隔（默认2倍帧率，保证流畅度）
+            if g is None:
+                g = fps * 2
+            ffmpeg_args["-g"] = str(g)
+            
+            # 质量控制（NVENC推荐用CRF，范围0-51，23-28为常用值）
+            if crf is not None:
+                # 根据编码器类型调整CRF范围
+                if vcodec == "av1_nvenc":
+                    crf = max(0, min(63, crf))  # AV1 CRF范围0-63
+                else:
+                    crf = max(0, min(51, crf))  # H.264/H.265 CRF范围0-51
+                ffmpeg_args["-crf"] = str(crf)
+            
+            # 编码预设（平衡速度与质量）：fast < medium < slow < slowest
+            # 实时场景用fast/medium，离线编码用slow
+            ffmpeg_args["-preset"] = "medium"
+            
+            # 启用B帧（提升压缩效率，NVENC支持良好）
+            ffmpeg_args["-bf"] = "2"  # 2个B帧
+            ffmpeg_args["-refs"] = "3"  # 参考帧数
+            
+            # NVIDIA特有优化：低延迟模式（实时场景启用）
+            if fast_decode:
+                ffmpeg_args["-preset"] = "llhq"  # 低延迟高画质
+                ffmpeg_args["-rc-lookahead"] = "16"  # 减少前瞻帧数
+            
+            # 编码器特性：H.264用main/high profile，HEVC用main
+            if vcodec == "h264_nvenc":
+                ffmpeg_args["-profile:v"] = "high"  # 支持更多特性
+            elif vcodec == "hevc_nvenc":
+                ffmpeg_args["-profile:v"] = "main"
+
+        # 2. 其他硬件编码器（v4l2m2m / vaapi / omx）
+        elif vcodec in ["h264_v4l2m2m", "h264_vaapi", "h264_omx"]:
+            # 分辨率对齐（硬件要求）
+            ffmpeg_args["-vf"] = "format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2"
+            
+            # 质量参数（v4l2m2m用-q:v，范围1-31）
+            if crf is not None:
+                q_value = max(1, min(31, crf))  # 映射CRF到v4l2m2m的质量范围
+                ffmpeg_args["-q:v"] = str(q_value)
+            
+            # 关键帧间隔
+            ffmpeg_args["-g"] = str(g) if g is not None else str(fps * 2)
+            
+            # 禁用B帧（部分硬件不支持）
+            ffmpeg_args["-bf"] = "0"
+            ffmpeg_args["-refs"] = "1"
+            
+            # VAAPI设备指定
+            if vcodec == "h264_vaapi":
+                ffmpeg_args["-vaapi_device"] = "/dev/dri/renderD128"
+
+        # 3. 软件编码器（libx264等）
+        else:
+            if crf is not None:
+                ffmpeg_args["-crf"] = str(crf)
+            if g is not None:
+                ffmpeg_args["-g"] = str(g)
+            
+            # 软件编码器优化
+            if fast_decode:
+                ffmpeg_args["-tune"] = "fastdecode"
+            ffmpeg_args["-preset"] = "medium"
+
+        # 通用优化参数
+        ffmpeg_args["-threads"] = "0"  # 自动多线程
+        ffmpeg_args["-movflags"] = "+faststart"  # 视频文件优化（快速开始播放）
+        ffmpeg_args["-pix_fmt"] = pix_fmt  # 确保输出像素格式
+
+        # 日志级别
+        if log_level is not None:
+            ffmpeg_args["-loglevel"] = log_level
+
+        # 构建FFmpeg命令
+        print("开始构建FFmpeg命令...")
+        ffmpeg_cmd = ["ffmpeg"] + [item for pair in ffmpeg_args.items() for item in pair]
+        print(f"构建命令: {' '.join(ffmpeg_cmd)}")
+
+        # 覆盖输出文件
+        if overwrite:
+            ffmpeg_cmd.append("-y")
+        ffmpeg_cmd.append(str(video_path))
+
+        # 执行编码命令
+        try:
+            result = subprocess.run(
+                ffmpeg_cmd,
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            print(f"视频编码成功: {video_path}")
+        except subprocess.CalledProcessError as e:
+            error_msg = f"FFmpeg 编码失败 (退出码 {e.returncode}):\n"
+            error_msg += f"命令: {' '.join(e.cmd)}\n"
+            error_msg += f"错误输出:\n{e.stderr}\n"
+            raise RuntimeError(error_msg) from e
+
+        # 验证文件生成
+        if not video_path.exists():
+            raise OSError(f"视频编码失败，文件未生成: {video_path}")
+else:
+    def encode_video_frames(
     imgs_dir: Path | str,
     video_path: Path | str,
     fps: int,
     vcodec: Literal["libopenh264", "libx264"] = "libx264",
     pix_fmt: str = "yuv420p",
-    g: int | None = 10,
-    crf: int | None = 10,
-    fast_decode: int = 0,
+    g: int | None = 18,
+    crf: int | None = 23,
+    fast_decode: int = 1,
     log_level: Optional[str] = "error",
     overwrite: bool = False,
 ) -> None:
-    """More info on ffmpeg arguments tuning on `benchmark/video/README.md`"""
+        """More info on ffmpeg arguments tuning on `benchmark/video/README.md`"""
 
-    # 确保编码器列表已加载
-    _ensure_encoders_loaded()
+        # 确保编码器列表已加载
+        _ensure_encoders_loaded()
 
-    # 获取当前支持的编码器列表
-    available_encoders = _AVAILABLE_ENCODERS
+        # 获取当前支持的编码器列表
+        available_encoders = _AVAILABLE_ENCODERS
 
-    # 用户指定的编码器是否可用
-    if vcodec in available_encoders:
-        pass  # 正常使用指定的编码器
-    else:
-        # 从支持的两个编码器中选择一个可用的
-        supported_candidates = {"libopenh264", "libx264"} & set(available_encoders)
+        # 用户指定的编码器是否可用
+        if vcodec in available_encoders:
+            pass  # 正常使用指定的编码器
+        else:
+            # 从支持的两个编码器中选择一个可用的
+            supported_candidates = {"libopenh264", "libx264"} & set(available_encoders)
 
-        if not supported_candidates:
-            raise ValueError(
-                "None of the supported encoders are available. "
-                "Please ensure at least one of 'libopenh264' or 'libx264' is supported by your ffmpeg installation."
+            if not supported_candidates:
+                raise ValueError(
+                    "None of the supported encoders are available. "
+                    "Please ensure at least one of 'libopenh264' or 'libx264' is supported by your ffmpeg installation."
+                )
+
+            # 优先选择 libx264，否则选择 libopenh264
+            selected_vcodec = "libx264" if "libx264" in supported_candidates else "libopenh264"
+
+            # 发出警告
+            warnings.warn(
+                f"vcodec '{vcodec}' not available. Automatically switched to '{selected_vcodec}'.",
+                UserWarning
             )
 
-        # 优先选择 libx264，否则选择 libopenh264
-        selected_vcodec = "libx264" if "libx264" in supported_candidates else "libopenh264"
+            vcodec = selected_vcodec
 
-        # 发出警告
-        warnings.warn(
-            f"vcodec '{vcodec}' not available. Automatically switched to '{selected_vcodec}'.",
-            UserWarning
+        # 剩余逻辑不变（略去，与原函数一致）
+        video_path = Path(video_path)
+        video_path.parent.mkdir(parents=True, exist_ok=True)
+
+        ffmpeg_args = OrderedDict(
+            [
+                ("-f", "image2"),
+                ("-r", str(fps)),
+                ("-i", str(imgs_dir / "frame_%06d.jpg")),
+                ("-vcodec", vcodec),
+                ("-pix_fmt", pix_fmt),
+            ]
         )
 
-        vcodec = selected_vcodec
+        if g is not None:
+            ffmpeg_args["-g"] = str(g)
 
-    # 剩余逻辑不变（略去，与原函数一致）
-    video_path = Path(video_path)
-    video_path.parent.mkdir(parents=True, exist_ok=True)
+        if crf is not None:
+            ffmpeg_args["-crf"] = str(crf)
 
-    ffmpeg_args = OrderedDict(
-        [
-            ("-f", "image2"),
-            ("-r", str(fps)),
-            ("-i", str(imgs_dir / "frame_%06d.png")),
-            ("-vcodec", vcodec),
-            ("-pix_fmt", pix_fmt),
-        ]
-    )
+        if fast_decode:
+            key = "-svtav1-params" if vcodec == "libsvtav1" else "-tune"
+            value = f"fast-decode={fast_decode}" if vcodec == "libsvtav1" else "fastdecode"
+            ffmpeg_args[key] = value
 
-    if g is not None:
-        ffmpeg_args["-g"] = str(g)
+        if log_level is not None:
+            ffmpeg_args["-loglevel"] = str(log_level)
 
-    if crf is not None:
-        ffmpeg_args["-crf"] = str(crf)
+        ffmpeg_args = [item for pair in ffmpeg_args.items() for item in pair]
+        if overwrite:
+            ffmpeg_args.append("-y")
 
-    if fast_decode:
-        key = "-svtav1-params" if vcodec == "libsvtav1" else "-tune"
-        value = f"fast-decode={fast_decode}" if vcodec == "libsvtav1" else "fastdecode"
-        ffmpeg_args[key] = value
+        ffmpeg_cmd = ["ffmpeg"] + ffmpeg_args + [str(video_path)]
+        # redirect stdin to subprocess.DEVNULL to prevent reading random keyboard inputs from terminal
+        subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
 
-    if log_level is not None:
-        ffmpeg_args["-loglevel"] = str(log_level)
-
-    ffmpeg_args = [item for pair in ffmpeg_args.items() for item in pair]
-    if overwrite:
-        ffmpeg_args.append("-y")
-
-    ffmpeg_cmd = ["ffmpeg"] + ffmpeg_args + [str(video_path)]
-    # redirect stdin to subprocess.DEVNULL to prevent reading random keyboard inputs from terminal
-    subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
-
-    if not video_path.exists():
-        raise OSError(
-            f"Video encoding did not work. File not found: {video_path}. "
-            f"Try running the command manually to debug: `{''.join(ffmpeg_cmd)}`"
-        )
-
+        if not video_path.exists():
+            raise OSError(
+                f"Video encoding did not work. File not found: {video_path}. "
+                f"Try running the command manually to debug: `{''.join(ffmpeg_cmd)}`"
+            )
 
 @dataclass
 class VideoFrame:

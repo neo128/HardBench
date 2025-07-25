@@ -113,7 +113,7 @@ def cameras_to_stream_json(cameras: dict[str, int]):
     return json.dumps(result)
 
 class Coordinator:
-    def __init__(self, daemon: Daemon, server_url="http://localhost:8080"):
+    def __init__(self, daemon: Daemon, server_url="http://localhost:8088"):
         self.server_url = server_url
         self.sio = socketio.Client()
         self.session = requests.Session()
@@ -377,16 +377,18 @@ def main(cfg: ControlPipelineConfig):
             if observation is not None:
                 image_keys = [key for key in observation if "image" in key]
                 for i, key in enumerate(image_keys, start=1):
+                    # img = observation[key].numpy()
                     img = cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR) 
-
+                    
                     name = key[len("observation.images."):]
                     coordinator.update_stream(name, img)
 
                     if not is_headless():
                         # print(f"will show image, name:{name}")
-                        cv2.imshow(name, img)
-                        cv2.waitKey(1)
+                        # cv2.imshow(name, img)
+                        # cv2.waitKey(1)
                         # print("show image succese")
+                        pass   
                     
             else:
                 print("observation is none")

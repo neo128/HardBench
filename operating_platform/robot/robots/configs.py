@@ -296,7 +296,7 @@ class RealmanRobotConfig(RobotConfig):
     right_arm_config = {}
     right_arm_config['usb_port'] = "/dev/ttyUSB0"
     right_arm_config['ip'] = "169.254.128.19"
-    right_arm_config['fps'] = 30
+    right_arm_config['fps'] = 20
     right_arm_config['calibration_dir'] = ".cache/calibration/adora_dual_right"
     right_arm_config['start_pose'] = [90.0, 90.0, -90.0, -90.0, 0.0, 0.0, 0.0]
     right_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
@@ -323,7 +323,7 @@ class RealmanRobotConfig(RobotConfig):
     left_arm_config = {}
     left_arm_config['usb_port'] = "/dev/ttyUSB1"
     left_arm_config['ip'] = "169.254.128.18"
-    left_arm_config['fps'] = 30
+    left_arm_config['fps'] = 20
     left_arm_config['calibration_dir'] = ".cache/calibration/adora_dual_left"
     left_arm_config['start_pose'] = [-90.0, 90.0, 90.0, -90.0, 0.0, 0.0, 0.0]
     left_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
@@ -351,19 +351,19 @@ class RealmanRobotConfig(RobotConfig):
         default_factory=lambda: {
             "image_top": OpenCVCameraConfig(
                 camera_index=20,
-                fps=30,
+                fps=20,
                 width=640,
                 height=480,
             ),
             "image_right": OpenCVCameraConfig(
                 camera_index=4,
-                fps=30,
+                fps=20,
                 width=640,
                 height=480,
             ),
             "image_left": OpenCVCameraConfig(
                 camera_index=22,
-                fps=30,
+                fps=20,
                 width=640,
                 height=480,
             ),

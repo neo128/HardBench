@@ -1,36 +1,36 @@
 nodes:
-  # - id: camera_top
-  #   path: ../../components/camera_rgbd_realsense/main.py
-  #   inputs:
-  #     tick: dora/timer/millis/33
-  #   outputs:
-  #     - image
-  #     - image_depth
-  #   env:
-  #     DEVICE_SERIAL: 151222070026 
-  # - id: camera_right
-  #   path: ../../components/camera_rgbd_realsense/main.py
-  #   inputs:
-  #     tick: dora/timer/millis/33
-  #   outputs:
-  #     - image
-  #     - image_depth
-  #   env:
-  #     DEVICE_SERIAL: 244222077206
+  - id: camera_top
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/50
+    outputs:
+      - image
+      - image_depth
+    env:
+      DEVICE_SERIAL: 151222070026 
+  - id: camera_right
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/50
+    outputs:
+      - image
+      - image_depth
+    env:
+      DEVICE_SERIAL: 244222077206
 
-  # - id: camera_left
-  #   path: ../../components/camera_rgbd_realsense/main.py
-  #   inputs:
-  #     tick: dora/timer/millis/33
-  #   outputs:
-  #     - image
-  #     - image_depth
-  #   env:
-  #     DEVICE_SERIAL: 216322072452
+  - id: camera_left
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/50
+    outputs:
+      - image
+      - image_depth
+    env:
+      DEVICE_SERIAL: 216322072452
   - id: arm_right
     path: ../../components/arm_normal_realman_v2/main.py
     inputs:
-      tick: dora/timer/millis/300
+      tick: dora/timer/millis/50
     outputs:
       - jointstate
       - gripper
@@ -43,7 +43,7 @@ nodes:
   - id: arm_left
     path: ../../components/arm_normal_realman_v2/main.py
     inputs:
-      tick: dora/timer/millis/300
+      tick: dora/timer/millis/40
     outputs:
       - jointstate
       - gripper
@@ -57,11 +57,11 @@ nodes:
   - id: zeromq
     path: ../dora_zeromq.py
     inputs: 
-      # image_top: camera_top/image
+      image_top: camera_top/image
       # image_depth_top: camera_top/image_depth
-      # image_right: camera_right/image
+      image_right: camera_right/image
       # image_depth_right: camera_right/image_depth
-      # image_left: camera_left/image
+      image_left: camera_left/image
       # image_depth_left: camera_left/image_depth
       jointstate_left: arm_left/jointstate
       jointstate_right: arm_right/jointstate

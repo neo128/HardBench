@@ -15,7 +15,7 @@ from datasets import concatenate_datasets, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.constants import REPOCARD_NAME
 from huggingface_hub.errors import RevisionNotFoundError
-
+import time
 
 from operating_platform.dataset.compute_stats import aggregate_stats, compute_episode_stats
 from operating_platform.dataset.image_writer import AsyncImageWriter, write_image
@@ -896,15 +896,19 @@ class DoRobotDataset(torch.utils.data.Dataset):
             if key in ["index", "episode_index", "task_index"] or ft["dtype"] in ["image", "video"]:
                 continue
             episode_buffer[key] = np.stack(episode_buffer[key])
-
+        print(f"开始的时间{time.time()}")
         self._wait_image_writer()
+        print(f"结束的时间{time.time()}")
+
         self._save_episode_table(episode_buffer, episode_index)
         ep_stats = compute_episode_stats(episode_buffer, self.features)
+        print(f"开始保存视频的时间{time.time()}")
 
         if len(self.meta.video_keys) > 0:
             video_paths = self.encode_episode_videos(episode_index)
             for key in self.meta.video_keys:
                 episode_buffer[key] = video_paths[key]
+        print(f"结束保存视频的时间{time.time()}")
 
         # `meta.save_episode` be executed after encoding the videos
         self.meta.save_episode(episode_index, episode_length, episode_tasks, ep_stats)

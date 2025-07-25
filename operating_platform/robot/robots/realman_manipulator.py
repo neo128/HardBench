@@ -55,7 +55,7 @@ def recv_server():
                 # 解码图像
                 img_array = np.frombuffer(buffer_bytes, dtype=np.uint8)
                 frame = img_array.reshape((480, 640, 3))  # 已经是 RGB 格式
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 if frame is not None:
                     with lock:
                         # print(f"Received event_id = {event_id}")
@@ -349,7 +349,7 @@ class RealmanManipulator:
             images[name] = recv_images[name]
 
             # images[name] = self.cameras[name].async_read()
-            images[name] = torch.from_numpy(images[name])
+            images[name] = torch.from_numpy((images[name]).copy())
             # self.logs[f"read_camera_{name}_dt_s"] = self.cameras[name].logs["delta_timestamp_s"]
             self.logs[f"read_camera_{name}_dt_s"] = time.perf_counter() - now
 
