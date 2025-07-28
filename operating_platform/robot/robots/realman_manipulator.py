@@ -53,14 +53,45 @@ def recv_server():
             buffer_bytes = message_parts[1]
             if 'image' in event_id:
                 # 解码图像
-                img_array = np.frombuffer(buffer_bytes, dtype=np.uint8)
-                frame = img_array.reshape((480, 640, 3))  # 已经是 RGB 格式
-                # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                if frame is not None:
-                    with lock:
-                        # print(f"Received event_id = {event_id}")
-                        recv_images[event_id] = frame
+                if 'depth' not in event_id:
+                    img_array = np.frombuffer(buffer_bytes, dtype=np.uint8)
+                    frame = img_array.reshape((480, 640, 3))  # 已经是 RGB 格式
+                    # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    if frame is not None:
+                        with lock:
+                            # print(f"Received event_id = {event_id}")
+                            recv_images[event_id] = frame
+                elif 'depth' in event_id: 
+                    depth_array = np.frombuffer(buffer_bytes, dtype=np.uint16)
+                    depth_frame = depth_array.reshape((480, 640))  # 已经是 RGB 格式
+                    if depth_frame is not None:
+                        # 排除无效值（可选，根据传感器特性，例如0或65535可能是无效深度）
+                        valid_mask = (depth_frame > 0) & (depth_frame < 65535)
+                        if np.any(valid_mask):
+                            # 仅对有效区域归一化，避免无效值干扰
+                            valid_depth = depth_frame[valid_mask]
+                            min_val = valid_depth.min()
+                            max_val = valid_depth.max()
+                        else:
+                            # 若全无效，强制范围为0~65535
+                            min_val, max_val = 0, 65535
 
+                        # 归一化到0~255（8位）
+                        depth_8bit = cv2.normalize(
+                            depth_frame, 
+                            None, 
+                            alpha=0, 
+                            beta=255, 
+                            norm_type=cv2.NORM_MINMAX, 
+                            dtype=cv2.CV_8U  # 转换为8位无符号整数
+                        )
+                        rgb_depth = cv2.cvtColor(depth_8bit, cv2.COLOR_GRAY2RGB)  # 扩展维度到(480,640,3)以实现保存
+
+                        # 存储归一化后的图像用于显示
+                        with lock:
+                            # print(f"Received event_id = {event_id}")
+                            recv_images[event_id] = rgb_depth
+            
             if 'jointstate' in event_id:
                 joint_array = np.frombuffer(buffer_bytes, dtype=np.float64)
                 if joint_array is not None:
@@ -171,12 +202,12 @@ class RealmanManipulator:
         print(f"期望的状态名字数量{state_names}")
         return {
             "action": {
-                "dtype": "float32",
+                "dtype": "float64",
                 "shape": (len(action_names),),
                 "names": action_names,
             },
             "observation.state": {
-                "dtype": "float32",
+                "dtype": "float64",
                 "shape": (len(state_names),),
                 "names": state_names,
             },
@@ -215,8 +246,6 @@ class RealmanManipulator:
 
         start_time = time.perf_counter()
         while True:
-            for key in recv_pose: 
-                print(key)
             if any(
                 any(name in key for key in recv_pose)
                 for name in self.follower_arms
@@ -277,10 +306,10 @@ class RealmanManipulator:
                 if name in match_name:
                     now = time.perf_counter()
 
-                    byte_array = np.zeros(6, dtype=np.float32)
+                    byte_array = np.zeros(7, dtype=np.float64)
                     joint_read = recv_jointstats[match_name]
 
-                    byte_array[:6] = joint_read[:6]
+                    byte_array[:7] = joint_read[:7]
                     byte_array = np.round(byte_array, 3)
                     
                     follower_joint[name] = torch.from_numpy(byte_array)
@@ -294,10 +323,10 @@ class RealmanManipulator:
                 if name in match_name:
                     now = time.perf_counter()
 
-                    byte_array = np.zeros(6, dtype=np.float32)
+                    byte_array = np.zeros(6, dtype=np.float64)
                     pose_read = recv_pose[match_name]
 
-                    byte_array[:6] = pose_read[:]
+                    byte_array[:6] = pose_read[:6]
                     byte_array = np.round(byte_array, 3)
                     
                     follower_pos[name] = torch.from_numpy(byte_array)
@@ -309,7 +338,7 @@ class RealmanManipulator:
             for match_name in recv_gripper:
                     now = time.perf_counter()
 
-                    byte_array = np.zeros(1, dtype=np.float32)
+                    byte_array = np.zeros(1, dtype=np.float64)
                     gripper_read = recv_gripper[match_name]
 
                     byte_array[:1] = gripper_read[:]
@@ -345,7 +374,6 @@ class RealmanManipulator:
         images = {}
         for name in self.cameras:
             now = time.perf_counter()
-            
             images[name] = recv_images[name]
 
             # images[name] = self.cameras[name].async_read()
@@ -359,7 +387,6 @@ class RealmanManipulator:
         action_dict["action"] = action
         for name in self.cameras:
             obs_dict[f"observation.images.{name}"] = images[name]
-        
         # print("end teleoperate record")
 
         return obs_dict, action_dict

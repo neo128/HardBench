@@ -128,7 +128,7 @@ class Coordinator:
 
         self.cameras: dict[str, int] = {
             "image_top": 1,
-            "image_depth_top": 2,
+            "image_right": 2,
         } # Default Config
         
         # 注册事件处理
@@ -330,8 +330,10 @@ class Coordinator:
         _, jpeg_frame = cv2.imencode('.jpg', frame, 
                             [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         frame_data = jpeg_frame.tobytes()
-
         stream_id = self.cameras[name]
+        # 不在浏览器界面显示深度信息
+        if "depth" in name:
+            return
         # Build URL
         url = f"{self.server_url}/robot/update_stream/{stream_id}"
 

@@ -310,6 +310,7 @@ class RealmanRobotConfig(RobotConfig):
             "joint_4": [4, "realman-motor"],
             "joint_5": [5, "realman-motor"],
             "joint_6": [6, "realman-motor"],
+            "joint_7": [7, "realman-motor"],
             "pose_x":  [7,  "realman-pose"],
             "pose_y":  [8,  "realman-pose"],
             "pose_z":  [9,  "realman-pose"],
@@ -337,6 +338,7 @@ class RealmanRobotConfig(RobotConfig):
             "joint_4": [4, "realman-motor"],
             "joint_5": [5, "realman-motor"],
             "joint_6": [6, "realman-motor"],
+            "joint_7": [7, "realman-motor"],
             "pose_x":  [7,  "realman-pose"],
             "pose_y":  [8,  "realman-pose"],
             "pose_z":  [9,  "realman-pose"],
@@ -367,6 +369,25 @@ class RealmanRobotConfig(RobotConfig):
                 width=640,
                 height=480,
             ),
+            "image_depth_top": OpenCVCameraConfig(
+                camera_index=20,
+                fps=20,
+                width=640,
+                height=480,
+            ),
+            "image_depth_right": OpenCVCameraConfig(
+                camera_index=4,
+                fps=20,
+                width=640,
+                height=480,
+            ),
+            "image_depth_left": OpenCVCameraConfig(
+                camera_index=22,
+                fps=20,
+                width=640,
+                height=480,
+            ),
+            
         }
     )
 

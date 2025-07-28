@@ -2,7 +2,7 @@ import os
 import pyarrow as pa
 from dora import Node
 from Robotic_Arm.rm_robot_interface import *
-
+import numpy as np
 
 id = os.getenv("ARM_ID", "arm_right")       # ARM_ID: Arm identifier; defaults to "arm_right" if not set
 ip = os.getenv("ARM_IP", "192.168.1.18")    # ARM_IP: Connection IP address; defaults to "192.168.1.18" if not set
@@ -77,7 +77,10 @@ class RealmanArm:
     def read_joint_eef_pose(self):
         flag, robot_info = self.arm.rm_get_current_arm_state()
         return robot_info['pose']
-
+    def rm_read_gripper_actpos(self):
+        flag, gripper_dict = self.arm.rm_get_gripper_state()
+        gripper_actpos = np.array([gripper_dict['actpos']]).astype(np.float64)
+        return gripper_actpos
 
 def main():
     main_arm = RealmanArm(ip, port, start_pose, joint_p_limit, joint_n_limit)
@@ -103,11 +106,12 @@ def main():
             #     node.send_output("read-joint", pa.array(read_joint))
             if event["id"] == "tick":
                 jointstate = main_arm.read_joint_degree()
-                node.send_output("jointstate", pa.array(jointstate[:-1]))
-                gripper = jointstate[-1:]
-                node.send_output("gripper", pa.array(gripper))
+                node.send_output("jointstate", pa.array(jointstate))
+                gripper_actpos = main_arm.rm_read_gripper_actpos()
+                node.send_output("gripper", pa.array(gripper_actpos))
                 pose = main_arm.read_joint_eef_pose()
                 node.send_output("pose", pa.array(pose))
+
             if event["id"] == "stop":
                 main_arm.stop()
         
