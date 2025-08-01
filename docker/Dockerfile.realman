@@ -100,3 +100,5 @@ RUN conda run -n op pip cache purge && \
 
 # 设置默认启动命令
 CMD ["/bin/bash"]
+
+# docker build -f docker/Dockerfile.realman -t operating_platform .  周一重新打一个镜像
