@@ -349,7 +349,7 @@ class RealmanManipulator:
                     self.logs[f"read_follower_{name}_gripper_dt_s"] = time.perf_counter() - now
 
         
-        #记录当前关节角度 为28维:(7+6+1)*2
+        #记录当前关节角度 为30维:(7+7+1)*2
         state = []
         for name in self.follower_arms:
             if name in follower_joint:
