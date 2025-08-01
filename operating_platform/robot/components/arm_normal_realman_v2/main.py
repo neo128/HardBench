@@ -76,7 +76,11 @@ class RealmanArm:
         self.is_connected = False
     def read_joint_eef_pose(self):
         flag, robot_info = self.arm.rm_get_current_arm_state()
-        return robot_info['pose']
+        position = robot_info['pose'][:3]
+        euler = robot_info['pose'][3:]
+        quaternion = self.arm.rm_algo_euler2quaternion(euler)
+        pose_7d = np.concatenate([position, quaternion])
+        return pose_7d
     def rm_read_gripper_actpos(self):
         flag, gripper_dict = self.arm.rm_get_gripper_state()
         gripper_actpos = np.array([gripper_dict['actpos']]).astype(np.float64)
@@ -111,7 +115,6 @@ def main():
                 node.send_output("gripper", pa.array(gripper_actpos))
                 pose = main_arm.read_joint_eef_pose()
                 node.send_output("pose", pa.array(pose))
-
             if event["id"] == "stop":
                 main_arm.stop()
         

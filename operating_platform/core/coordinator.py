@@ -241,7 +241,9 @@ class Coordinator:
             print(f"Resume mode: {'Enabled' if resume else 'Disabled'}")
 
             record_cfg = RecordConfig(fps=DEFAULT_FPS, repo_id=repo_id, resume=resume, root=target_dir)
+            print(1)
             self.record = Record(fps=DEFAULT_FPS, robot=self.daemon.robot, daemon=self.daemon, record_cfg = record_cfg, record_cmd=msg)
+            print(2)
             
             self.record.start()
 

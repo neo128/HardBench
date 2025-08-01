@@ -97,7 +97,7 @@ def recv_server():
                 if joint_array is not None:
                     with lock:
                         # print(f"Received event_id = {event_id}")
-                        # print(f"Received joint_array = {joint_array}")
+                        # print(f"Received {event_id}joint_array = {joint_array}")
                         recv_jointstats[event_id] = joint_array
 
             if 'pose' in event_id:
@@ -323,10 +323,10 @@ class RealmanManipulator:
                 if name in match_name:
                     now = time.perf_counter()
 
-                    byte_array = np.zeros(6, dtype=np.float64)
+                    byte_array = np.zeros(7, dtype=np.float64)
                     pose_read = recv_pose[match_name]
 
-                    byte_array[:6] = pose_read[:6]
+                    byte_array[:7] = pose_read[:7]
                     byte_array = np.round(byte_array, 3)
                     
                     follower_pos[name] = torch.from_numpy(byte_array)
@@ -349,7 +349,7 @@ class RealmanManipulator:
                     self.logs[f"read_follower_{name}_gripper_dt_s"] = time.perf_counter() - now
 
         
-        #记录当前关节角度
+        #记录当前关节角度 为28维:(7+6+1)*2
         state = []
         for name in self.follower_arms:
             if name in follower_joint:
@@ -358,6 +358,7 @@ class RealmanManipulator:
                 state.append(follower_pos[name])
             if name in follower_gripper:
                 state.append(follower_gripper[name])
+
         state = torch.cat(state)
 
         #将关节目标位置添加到 action 列表中

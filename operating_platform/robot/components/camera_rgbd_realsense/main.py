@@ -107,7 +107,7 @@ def main():
                 metadata["encoding"] = "mono16"
                 scaled_depth_image[scaled_depth_image > 5000] = 0
                 node.send_output(
-                    "depth",
+                    "image_depth",
                     pa.array(scaled_depth_image.ravel()),
                     metadata,
                 )

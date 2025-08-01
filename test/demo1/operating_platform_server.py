@@ -55,7 +55,6 @@ class VideoStream:
         """接收外部帧数据并更新当前帧"""
         if not self.running:
             return
-        
         # 解码图像
         img = cv2.imdecode(np.frombuffer(frame_data, np.uint8), cv2.IMREAD_COLOR)
         if img is None:

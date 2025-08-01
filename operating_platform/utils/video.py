@@ -169,79 +169,79 @@ def decode_video_frames_torchvision(
 
     assert len(timestamps) == len(closest_frames)
     return closest_frames
-test = True
-if test:
-    # 1. 保证能找到 Jetson 插件
-    os.environ["GST_PLUGIN_PATH"] = "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
-    os.environ["LD_LIBRARY_PATH"] = "/usr/lib/aarch64-linux-gnu"
+# test = True
+# if test:
+#     # 1. 保证能找到 Jetson 插件
+#     os.environ["GST_PLUGIN_PATH"] = "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
+#     os.environ["LD_LIBRARY_PATH"] = "/usr/lib/aarch64-linux-gnu"
 
-    def encode_video_frames(
-        imgs_dir: Path | str,
-        video_path: Path | str,
-        fps: int = 25,
-        vcodec: Literal["h264_nvmpi"] = "h264_nvmpi",  # 仅保留 Jetson 专用
-        pix_fmt: str = "yuv420p",                      # 仅作占位
-        g: int | None = None,
-        crf: int | None = 25/1,                          # 这里当“质量因子”→码率
-        fast_decode: int = 0,
-        log_level: Optional[str] = "error",
-        overwrite: bool = False,
-    ) -> None:
-        """
-        用 GStreamer 的 nvv4l2h264enc 把多张 JPEG 编码成 H.264 MP4
-        """
-        imgs_dir = Path(imgs_dir)
-        video_path = Path(video_path)
-        video_path.parent.mkdir(parents=True, exist_ok=True)
+#     def encode_video_frames(
+#         imgs_dir: Path | str,
+#         video_path: Path | str,
+#         fps: int = 25,
+#         vcodec: Literal["h264_nvmpi"] = "h264_nvmpi",  # 仅保留 Jetson 专用
+#         pix_fmt: str = "yuv420p",                      # 仅作占位
+#         g: int | None = None,
+#         crf: int | None = 25/1,                          # 这里当“质量因子”→码率
+#         fast_decode: int = 0,
+#         log_level: Optional[str] = "error",
+#         overwrite: bool = False,
+#     ) -> None:
+#         """
+#         用 GStreamer 的 nvv4l2h264enc 把多张 JPEG 编码成 H.264 MP4
+#         """
+#         imgs_dir = Path(imgs_dir)
+#         video_path = Path(video_path)
+#         video_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # 覆盖输出
-        if overwrite and video_path.exists():
-            video_path.unlink()
+#         # 覆盖输出
+#         if overwrite and video_path.exists():
+#             video_path.unlink()
 
-        # 关键帧间隔
+#         # 关键帧间隔
 
-        # 把 crf 映射成码率（0-51 → 100 k-10 M）
-        bitrate = max(100_000, min(10_000_000, (51 - (crf or 25)) * 100_000))
+#         # 把 crf 映射成码率（0-51 → 100 k-10 M）
+#         bitrate = max(100_000, min(10_000_000, (51 - (crf or 25)) * 100_000))
 
-        cmd = [
-            "gst-launch-1.0", "-e",
-            "multifilesrc",
-            f"location={imgs_dir}/frame_%06d.jpg",
-            "index=1",
-            f"caps=image/jpeg,framerate={fps}/1",
-            "!",
-            "jpegdec", "!",  # 写成nvjpedec后视频会只有一张图片
-            "videoconvert", "!",
-            "videoscale", "!",
-            "video/x-raw,width=640,height=480,format=I420",  # 按需改分辨率
-            "!",
-            "nvvidconv", "!",
-            "video/x-raw(memory:NVMM),format=NV12",
-            "!",
-            "nvv4l2h265enc",
-            "preset-level=1",
+#         cmd = [
+#             "gst-launch-1.0", "-e",
+#             "multifilesrc",
+#             f"location={imgs_dir}/frame_%06d.jpg",
+#             "index=1",
+#             f"caps=image/jpeg,framerate={fps}/1",
+#             "!",
+#             "jpegdec", "!",  # 写成nvjpedec后视频会只有一张图片
+#             "videoconvert", "!",
+#             "videoscale", "!",
+#             "video/x-raw,width=640,height=480,format=I420",  # 按需改分辨率
+#             "!",
+#             "nvvidconv", "!",
+#             "video/x-raw(memory:NVMM),format=NV12",
+#             "!",
+#             "nvv4l2h265enc",
+#             "preset-level=1",
             
-            # f"bitrate={bitrate}",
-            "maxperf-enable=1", 
-            "iframeinterval=30",
-            "!",
-            "h265parse", "!",
-            "qtmux", "!",
-            "filesink", f"location={video_path}",
-        ]
+#             # f"bitrate={bitrate}",
+#             "maxperf-enable=1", 
+#             "iframeinterval=30",
+#             "!",
+#             "h265parse", "!",
+#             "qtmux", "!",
+#             "filesink", f"location={video_path}",
+#         ]
 
-        print("执行命令：", " ".join(cmd))
-        subprocess.run(cmd, check=True)
-        print(f"编码完成 → {video_path}")
-else:
-    def encode_video_frames(
+#         print("执行命令：", " ".join(cmd))
+#         subprocess.run(cmd, check=True)
+#         print(f"编码完成 → {video_path}")
+# else:
+def encode_video_frames(
     imgs_dir: Path | str,
     video_path: Path | str,
     fps: int,
     vcodec: Literal["libopenh264", "libx264"] = "libx264",
     pix_fmt: str = "yuv420p",
-    g: int | None = 18,
-    crf: int | None = 23,
+    g: int | None = 20,
+    crf: int | None = 18,
     fast_decode: int = 1,
     log_level: Optional[str] = "error",
     overwrite: bool = False,
@@ -319,7 +319,38 @@ else:
                 f"Video encoding did not work. File not found: {video_path}. "
                 f"Try running the command manually to debug: `{''.join(ffmpeg_cmd)}`"
             )
+def encode_depth_video_frames(
+    imgs_dir: Path | str,
+    video_path: Path | str,
+    fps: int,
+    vcodec: str = "ffv1",  # 使用无损编码
+    pix_fmt: str = "gray",  # 单通道灰度
+    overwrite: bool = False,
+) -> None:
+    """Encode depth images to video."""
+    video_path = Path(video_path)
+    imgs_dir = Path(imgs_dir)
+    video_path.parent.mkdir(parents=True, exist_ok=True)
 
+    ffmpeg_args = [
+        "ffmpeg",
+        "-f", "image2",
+        "-r", str(fps),
+        "-i", str(imgs_dir / "frame_%06d.png"),
+        "-vcodec", vcodec,
+        "-pix_fmt", pix_fmt,
+    ]
+    
+    if overwrite:
+        ffmpeg_args.append("-y")
+    
+    ffmpeg_args.append(str(video_path))
+    
+    subprocess.run(ffmpeg_args, check=True, stdin=subprocess.DEVNULL)
+
+    if not video_path.exists():
+        raise OSError(f"Video encoding failed. File not found: {video_path}")
+    
 @dataclass
 class VideoFrame:
     # TODO(rcadene, lhoestq): move to Hugging Face `datasets` repo

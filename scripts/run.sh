@@ -1,11 +1,13 @@
 #!/bin/bash
 
 # 配置参数
-CONTAINER_NAME="operating_platform"
+read -p "请输入机器人的名称，可输入的有realman、aloha、pika: " robot_type
+
+CONTAINER_NAME="baai-flask-server"
 PROJECT_DIR="/root/Operating-Platform"
-CONDA_ENV1="op-robot-aloha"
+CONDA_ENV1="op-robot-$robot_type"
 CONDA_ENV2="op"
-DATAFLOW_PATH="operating_platform/robot/robots/aloha_v1/robot_aloha_dataflow.yml"
+DATAFLOW_PATH="operating_platform/robot/robots/${robot_type}_v1/robot_${robot_type}_dataflow.yml"
 TIMEOUT=30  # 等待超时时间（秒）
 CLEANED_UP=false
 

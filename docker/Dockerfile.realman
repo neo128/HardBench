@@ -1,0 +1,102 @@
+# # 使用 Ubuntu 官方镜像
+FROM ubuntu:20.04
+
+# Nidia官方镜像
+# FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+
+# 更新系统
+RUN apt update && apt upgrade -y
+
+# 设置非交互环境（必须）
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 预先设置时区（关键）
+RUN ln -fs /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+# 安装系统依赖
+RUN apt install -y \
+    vim \
+    git \
+    curl \
+    wget \
+    bzip2 \
+    cmake \
+    ffmpeg \
+    x11-apps \
+    build-essential \
+    ca-certificates \
+    speech-dispatcher \
+    libssl-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    pkg-config \
+    libgtk-3-dev \
+    libglfw3-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev 
+
+# 设置安装参数
+ENV CONDA_DIR=/opt/conda
+ENV PATH=$CONDA_DIR/bin:$PATH
+
+# 下载并安装 Miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -O ~/miniconda.sh && \
+    /bin/bash ~/miniconda.sh -b -p $CONDA_DIR && \
+    rm ~/miniconda.sh && \
+    # 初始化 conda
+    conda init bash
+
+# 创建 Conda 环境 op 并安装poetry、torch
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
+    && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r \
+    && conda create -n op python=3.11 -y \
+    && conda run -n op pip install --no-cache-dir poetry -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    && conda run -n op pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+        -i https://pypi.org/simple \
+        --extra-index-url https://download.pytorch.org/whl/cpu
+
+# 创建 Conda 环境 op-robot-realman
+RUN conda create -n op-robot-realman python=3.9 -y
+ENV PATH=$CONDA_DIR/bin:$PATH
+
+# 设置工作目录
+WORKDIR /root/Operating-Platform
+COPY . .
+
+# 安装 op 项目依赖
+RUN conda run -n op poetry install
+
+# 安装 op-robot-realman 项目依赖
+WORKDIR /root/Operating-Platform/operating_platform/robot/robots/realman_v1
+RUN conda run -n op-robot-realman python -m pip install --no-cache-dir \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple poetry && \
+    conda run -n op-robot-realman poetry install --no-root
+
+# 需要补充安装realsense GitHub - IntelRealSense/librealsense: Intel® RealSense™ SDK
+# 克隆 librealsense
+RUN git clone https://github.com/IntelRealSense/librealsense.git \
+        /root/Operating-Platform/operating_platform/robot/components/camera_rgbd_realsense/librealsense
+
+WORKDIR /root/Operating-Platform/operating_platform/robot/components/camera_rgbd_realsense/librealsense
+
+# 构建 RealSense，启用 Python 绑定
+RUN mkdir build && cd build && \
+    conda run -n op-robot-realman cmake .. \
+        -DBUILD_EXAMPLES=ON \
+        -DBUILD_PYTHON_BINDINGS=ON \
+        -DPYTHON_EXECUTABLE=$(conda run -n op-robot-realman which python) \
+        -DCMAKE_BUILD_TYPE=Release && \
+    conda run -n op-robot-realman make -j$(nproc) && \
+    conda run -n op-robot-realman make install 
+    # 检查是否导入realsense
+# RUN conda run -n op-robot-realman python -c "import pyrealsense2 as rs; print('RealSense Python OK')"
+WORKDIR /Operating-Platform
+
+# 清理
+RUN conda run -n op pip cache purge && \
+    conda run -n op-robot-realman pip cache purge && \
+    conda clean --all -y && \
+    apt-get clean
+
+# 设置默认启动命令
+CMD ["/bin/bash"]
