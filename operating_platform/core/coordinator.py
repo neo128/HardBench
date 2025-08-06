@@ -22,7 +22,7 @@ from operating_platform.robot.robots.configs import RobotConfig
 from operating_platform.robot.robots.utils import make_robot_from_config, Robot, busy_wait, safe_disconnect
 from operating_platform.utils import parser
 from operating_platform.utils.utils import has_method, init_logging, log_say
-
+from operating_platform.utils.data_file import check_disk_space
 from operating_platform.utils.constants import DOROBOT_DATASET
 from operating_platform.dataset.dorobot_dataset import *
 
@@ -30,7 +30,7 @@ from operating_platform.dataset.dorobot_dataset import *
 from operating_platform.core.daemon import Daemon
 from operating_platform.core.record import Record, RecordConfig
 
-DEFAULT_FPS = 30
+DEFAULT_FPS = 25
 
 @cache
 def is_headless():
@@ -106,6 +106,7 @@ def cameras_to_stream_json(cameras: dict[str, int]):
         str: 格式化的 JSON 字符串
     """
     stream_list = [{"id": cam_id, "name": name} for name, cam_id in cameras.items()]
+    # 修改depth
     result = {
         "total": len(stream_list),
         "streams": stream_list
@@ -201,6 +202,9 @@ class Coordinator:
             
         elif data.get('cmd') == 'start_collection':
             print("处理开始采集命令...")
+            if not check_disk_space(min_gb=2):  # 检查是否 ≥1GB
+                print("存储空间不足,小于2GB,取消采集！")
+                self.send_response('start_collection', "存储空间不足,小于2GB")
             msg = data.get('msg')
 
             if self.recording == True:
@@ -215,6 +219,7 @@ class Coordinator:
             task_id = msg.get('task_id')
             task_name = msg.get('task_name')
             task_data_id = msg.get('task_data_id')
+            countdown_seconds = msg.get('countdown_seconds', 3) 
             repo_id=f"{task_name}_{task_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
@@ -241,10 +246,8 @@ class Coordinator:
             print(f"Resume mode: {'Enabled' if resume else 'Disabled'}")
 
             record_cfg = RecordConfig(fps=DEFAULT_FPS, repo_id=repo_id, resume=resume, root=target_dir)
-            print(1)
             self.record = Record(fps=DEFAULT_FPS, robot=self.daemon.robot, daemon=self.daemon, record_cfg = record_cfg, record_cmd=msg)
-            print(2)
-            
+            self.record.time = countdown_seconds
             self.record.start()
 
             # 发送响应

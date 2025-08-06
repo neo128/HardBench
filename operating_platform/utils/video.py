@@ -324,7 +324,7 @@ def encode_depth_video_frames(
     video_path: Path | str,
     fps: int,
     vcodec: str = "ffv1",  # 使用无损编码
-    pix_fmt: str = "gray",  # 单通道灰度
+    pix_fmt: str = "gray16le",  # 单通道灰度
     overwrite: bool = False,
 ) -> None:
     """Encode depth images to video."""

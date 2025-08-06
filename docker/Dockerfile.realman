@@ -90,7 +90,7 @@ RUN mkdir build && cd build && \
     conda run -n op-robot-realman make install 
     # 检查是否导入realsense
 # RUN conda run -n op-robot-realman python -c "import pyrealsense2 as rs; print('RealSense Python OK')"
-WORKDIR /Operating-Platform
+WORKDIR /root/Operating-Platform
 
 # 清理
 RUN conda run -n op pip cache purge && \

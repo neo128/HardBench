@@ -104,7 +104,8 @@ class Record:
         self.fps = fps
         self.record_cmd = record_cmd
         self.last_record_episode_index = 0
-
+        self.time = 0
+        
         if self.record_cfg.resume:
             self.dataset = DoRobotDataset(
                 record_cfg.repo_id,
@@ -137,6 +138,7 @@ class Record:
         self.running = True
 
     def process(self):
+        time.sleep(self.time)
         while self.running:
             if self.dataset is not None:
                 start_loop_t = time.perf_counter()

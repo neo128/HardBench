@@ -973,6 +973,23 @@ class DoRobotDataset(torch.utils.data.Dataset):
                         print(f"[ERROR] 删除失败！文件仍存在: {video_path}")
                 else:
                     print(f"[SKIP] 视频文件不存在，跳过删除: {video_path}")
+        
+        # 处理图片文件
+        if len(self.meta.video_keys) > 0:
+            print(f"[INFO] 正在处理图片文件 (keys: {self.meta.video_keys})")
+            for key in self.meta.video_keys:
+                image_path = os.path.dirname(self._get_image_file_path(ep_idx, key,frame_index=0))
+                if os.path.isdir(image_path):
+                    print(f"[DEBUG] 删除图片文件: {image_path}")
+                    shutil.rmtree(image_path)
+                    # 验证删除结果
+                    if not os.path.exists(image_path):
+                        print(f"[SUCCESS] 成功删除图片文件: {image_path}")
+                    else:
+                        print(f"[ERROR] 删除失败！文件仍存在: {image_path}")
+                else:
+                    print(f"[SKIP] 图片文件不存在，跳过删除: {image_path}")
+                    
 
         # 处理数据文件
         data_path = self.root / self.meta.get_data_file_path(ep_idx)
@@ -1007,11 +1024,18 @@ class DoRobotDataset(torch.utils.data.Dataset):
         if episode_index == 0:
             shutil.rmtree(self.root)
         else:
+            # if self.image_writer is not None:
+            #     for cam_key in self.meta.camera_keys:
+            #         img_dir = self._get_image_file_path(
+            #             episode_index=episode_index, image_key=cam_key, frame_index=0
+            #         ).parent.parent
+            #         if img_dir.is_dir():
+            #             shutil.rmtree(img_dir)
             if self.image_writer is not None:
                 for cam_key in self.meta.camera_keys:
                     img_dir = self._get_image_file_path(
                         episode_index=episode_index, image_key=cam_key, frame_index=0
-                    ).parent.parent
+                    ).parent
                     if img_dir.is_dir():
                         shutil.rmtree(img_dir)
 

@@ -76,17 +76,15 @@ def recv_server():
                             # 若全无效，强制范围为0~65535
                             min_val, max_val = 0, 65535
 
-                        # 归一化到0~255（8位）
-                        depth_8bit = cv2.normalize(
-                            depth_frame, 
-                            None, 
-                            alpha=0, 
-                            beta=255, 
-                            norm_type=cv2.NORM_MINMAX, 
-                            dtype=cv2.CV_8U  # 转换为8位无符号整数
+                        depth_16bit = cv2.normalize(
+                        depth_frame,
+                        None,
+                        alpha=0,
+                        beta=65535,
+                        norm_type=cv2.NORM_MINMAX,
+                        dtype=cv2.CV_16U  # 转换为16位无符号整数
                         )
-                        rgb_depth = cv2.cvtColor(depth_8bit, cv2.COLOR_GRAY2RGB)  # 扩展维度到(480,640,3)以实现保存
-
+                        rgb_depth = cv2.cvtColor(depth_16bit, cv2.COLOR_GRAY2RGB)  # 扩展维度到(480,640,3)以实现保存
                         # 存储归一化后的图像用于显示
                         with lock:
                             # print(f"Received event_id = {event_id}")

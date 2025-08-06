@@ -2,7 +2,7 @@ nodes:
   - id: camera_top
     path: ../../components/camera_rgbd_realsense/main.py
     inputs:
-      tick: dora/timer/millis/33
+      tick: dora/timer/millis/40
     outputs:
       - image
       - image_depth
@@ -11,7 +11,7 @@ nodes:
   - id: camera_right
     path: ../../components/camera_rgbd_realsense/main.py
     inputs:
-      tick: dora/timer/millis/33
+      tick: dora/timer/millis/50
     outputs:
       - image
       - image_depth
@@ -21,7 +21,7 @@ nodes:
   - id: camera_left
     path: ../../components/camera_rgbd_realsense/main.py
     inputs:
-      tick: dora/timer/millis/33
+      tick: dora/timer/millis/40
     outputs:
       - image
       - image_depth
@@ -30,7 +30,7 @@ nodes:
   - id: arm_right
     path: ../../components/arm_normal_realman_v2/main.py
     inputs:
-      tick: dora/timer/millis/33
+      tick: dora/timer/millis/40
     outputs:
       - jointstate
       - gripper
@@ -43,7 +43,7 @@ nodes:
   - id: arm_left
     path: ../../components/arm_normal_realman_v2/main.py
     inputs:
-      tick: dora/timer/millis/33
+      tick: dora/timer/millis/40
     outputs:
       - jointstate
       - gripper

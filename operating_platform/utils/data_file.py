@@ -1,6 +1,7 @@
 import os
 import datetime
 import json
+import shutil
 
 
 def get_today_date():
@@ -10,6 +11,17 @@ def get_today_date():
     # 格式化日期为字符串，格式为 "YYYY-MM-DD"
     date_string = today.strftime("%Y%m%d")
     return date_string
+
+def get_directory_size(directory):   
+    """递归计算目录的总大小（字节）"""
+    total_size = 0
+    for dirpath, _, filenames in os.walk(directory):
+        for filename in filenames:
+            file_path = os.path.join(dirpath, filename)
+            # 忽略无效链接（可选）
+            if not os.path.islink(file_path):
+                total_size += os.path.getsize(file_path)
+    return total_size
 
 def file_size(path,n):
     has_directory = False
@@ -49,21 +61,27 @@ def file_size(path,n):
         for subdir in pre_entries:
             pre_entry =  os.listdir(os.path.join(path,subdir))
             for file_name in pre_entry:
-                # 分割文件名和扩展名
-                base, ext = file_name.split(".")
-                # 分割前缀和数字部分
-                prefix, old_num = base.rsplit("_", 1)
+                # 检查是否有扩展名
+                if "." in file_name:
+                    base, ext = file_name.split(".")
+                    prefix, old_num = base.rsplit("_", 1)
+                else:
+                    # 没有扩展名的情况（可能是文件夹）
+                    prefix, old_num = file_name.rsplit("_", 1)
+                    ext = ""  # 无扩展名
                 # 计算数字部分的位数
                 num_digits = len(old_num)
                 # 格式化新数字，保持位数（用 zfill 补零）
                 new_num = str(n).zfill(num_digits)
                 # 重新组合文件名
-                new_file_name = f"{prefix}_{new_num}.{ext}"
+                new_file_name = f"{prefix}_{new_num}" + (f".{ext}" if ext else "")
                 break
-            
             file_path = os.path.join(path,subdir,new_file_name)
-            #print(file_path)
-            file_size += os.path.getsize(file_path)  # 获取文件大小（字节）
+            if os.path.isfile(file_path):
+                file_size += os.path.getsize(file_path)
+            elif os.path.isdir(file_path):
+                file_size += get_directory_size(file_path)
+
         return file_size
                                 
 
@@ -94,9 +112,11 @@ def get_data_size(fold_path, data): # 文件大小单位(MB)
         
         entries_1 = os.listdir(task_path) 
         for entry in entries_1:
+            data_path = os.path.join(task_path,entry,"chunk-000")
             if entry == "meta":
                 continue
-            data_path = os.path.join(task_path,entry,"chunk-000")
+            if entry == 'images':
+                data_path = os.path.join(task_path,entry)
             size_bytes += file_size(data_path,episode_index)
         size_mb = round(size_bytes / (1024 * 1024),2)
         return size_mb
@@ -158,6 +178,7 @@ def update_dataid_json(path, episode_index, data):
     append_data = {
         "episode_index": episode_index,
         "dataid": str(data["task_data_id"]),
+        "machine_id":str(data["machine_id"]),
     }
     
     # 以追加模式打开文件（如果不存在则创建）
@@ -199,7 +220,12 @@ def delete_dataid_json(path, episode_index, data):
 
 def update_common_record_json(path, data):
     opdata_path = os.path.join(path, "meta", "common_record.json")
-
+    os.makedirs(os.path.dirname(opdata_path), exist_ok=True)
+    if os.path.isfile(opdata_path):
+        with open(opdata_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if "task_id" in data:
+                return
     overwrite_data = {
         "task_id": str(data["task_id"]),
         "task_name": str(data["task_name"]),
@@ -211,6 +237,17 @@ def update_common_record_json(path, data):
         # 写入一行 JSON 数据（每行一个 JSON 对象）
         f.write(json.dumps(overwrite_data, ensure_ascii=False) + '\n')
 
+def check_disk_space(min_gb=1): 
+    # 获取根目录（/）的磁盘使用情况（Docker 默认挂载点）
+    total, used, free = shutil.disk_usage("/") 
+    # 转换为 GB
+    free_gb = free // (2**30)  # 1 GB = 2^30 bytes 
+    if free_gb < min_gb:
+        print(f"警告：剩余存储空间不足 {min_gb}GB（当前剩余 {free_gb}GB）")
+        return False
+    else:
+        print(f"存储空间充足（剩余 {free_gb}GB）")
+        return True
 
 # if __name__ == '__main__':
 #     fold_path = '/home/liuyou/Documents'
