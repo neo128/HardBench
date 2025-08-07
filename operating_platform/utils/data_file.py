@@ -115,6 +115,8 @@ def get_data_size(fold_path, data): # 文件大小单位(MB)
             data_path = os.path.join(task_path,entry,"chunk-000")
             if entry == "meta":
                 continue
+            if entry == "videos":
+                continue
             if entry == 'images':
                 data_path = os.path.join(task_path,entry)
             size_bytes += file_size(data_path,episode_index)

@@ -200,12 +200,12 @@ def arm_control_thread(
                 
             try:
                 # 解析动作数据（根据用户定义的格式）
-                # left: joint 0-6, pose:7-12, gripper:13
-                # right: joint:14-20, pose:21-26, gripper:27
+                # left: joint 0-6, pose:7-13, gripper:14
+                # right: joint:15-21, pose:22-28, gripper:29
                 joint_left = action_value[0:7]
-                gripper_left = float(action_value[13])
-                joint_right = action_value[14:21]
-                gripper_right = float(action_value[27])
+                gripper_left = float(action_value[14])
+                joint_right = action_value[15:22]
+                gripper_right = float(action_value[29])
 
                 # 调试信息
                 if debug and idx % 10 == 0:
