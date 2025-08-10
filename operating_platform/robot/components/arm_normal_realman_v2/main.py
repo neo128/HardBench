@@ -3,7 +3,7 @@ import pyarrow as pa
 from dora import Node
 from Robotic_Arm.rm_robot_interface import *
 import numpy as np
-
+import time
 id = os.getenv("ARM_ID", "arm_right")       # ARM_ID: Arm identifier; defaults to "arm_right" if not set
 ip = os.getenv("ARM_IP", "192.168.1.18")    # ARM_IP: Connection IP address; defaults to "192.168.1.18" if not set
 port = int(os.getenv("ARM_PORT", "8080"))   # ARM_PORT: Connection port number; defaults to 8080 if not set
@@ -88,7 +88,12 @@ class RealmanArm:
 
 def main():
     main_arm = RealmanArm(ip, port, start_pose, joint_p_limit, joint_n_limit)
-
+    # ---------- 新增 ----------
+    last_frame_ts = time.time()          # 最近一次拿到帧的时间
+    STATUS_OK      = b"True"
+    STATUS_OFFLINE = b"False"
+    STATUS_NODATA = b"False"
+    # --------------------------
     for event in node:
         event_type = event["type"]
 
@@ -115,7 +120,16 @@ def main():
                 node.send_output("gripper", pa.array(gripper_actpos))
                 pose = main_arm.read_joint_eef_pose()
                 node.send_output("pose", pa.array(pose))
-            if event["id"] == "stop":
+            elif event["id"] == "hw_tick":
+                # ---------- 心跳 ----------
+                if time.time() - last_frame_ts > 2.0:
+                    status = STATUS_NODATA
+                else:
+                    status = STATUS_OK
+
+                node.send_output("hw_single", status)
+                # --------------------------
+            elif event["id"] == "stop":
                 main_arm.stop()
         
         elif event_type == "ERROR":

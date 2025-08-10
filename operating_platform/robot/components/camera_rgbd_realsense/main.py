@@ -10,7 +10,14 @@ import pyrealsense2 as rs
 from dora import Node
 
 RUNNER_CI = True if os.getenv("CI") == "true" else False
-
+# ---------- 新增 ----------
+def camera_is_online(serial: str) -> bool:
+    """枚举判断指定 serial 的相机是否插在 USB 上"""
+    for d in rs.context().query_devices():
+        if d.get_info(rs.camera_info.serial_number) == serial:
+            return True
+    return False
+# --------------------------
 
 def main():
     """TODO: Add docstring."""
@@ -48,6 +55,12 @@ def main():
     _depth_intr = depth_profile.as_video_stream_profile().get_intrinsics()
     rgb_intr = rgb_profile.as_video_stream_profile().get_intrinsics()
     node = Node()
+    # ---------- 新增 ----------
+    last_frame_ts = time.time()          # 最近一次拿到帧的时间
+    STATUS_OK      = b"True"
+    STATUS_OFFLINE = b"False"
+    STATUS_NOFRAME = b"False"
+    # --------------------------
     start_time = time.time()
 
     pa.array([])  # initialize pyarrow array
@@ -98,6 +111,8 @@ def main():
                         continue
 
                 storage = pa.array(frame.ravel())
+                # 更新“有帧”时间戳
+                last_frame_ts = time.time()
 
                 metadata["resolution"] = [int(rgb_intr.ppx), int(rgb_intr.ppy)]
                 metadata["focal_length"] = [int(rgb_intr.fx), int(rgb_intr.fy)]
@@ -111,9 +126,20 @@ def main():
                     pa.array(scaled_depth_image.ravel()),
                     metadata,
                 )
+            if event_id == "hw_tick":
+                # ---------- 心跳 ----------
+                if not camera_is_online(device_serial):
+                    status = STATUS_OFFLINE
+                elif time.time() - last_frame_ts > 2.0:
+                    status = STATUS_NOFRAME
+                else:
+                    status = STATUS_OK
+                node.send_output("hw_single", status)
+                # --------------------------
         elif event_type == "ERROR":
             raise RuntimeError(event["error"])
 
 
 if __name__ == "__main__":
     main()
+

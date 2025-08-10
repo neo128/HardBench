@@ -39,6 +39,7 @@ recv_images = {}  # 缓存每个 event_id 的最新帧
 recv_jointstats = {} 
 recv_pose = {}
 recv_gripper = {}
+recv_hw_info = {}
 lock = threading.Lock()
 def recv_server():
     """接收数据线程"""
@@ -103,12 +104,16 @@ def recv_server():
                 if pose_array is not None:
                     with lock:
                         recv_pose[event_id] = pose_array
-
             if 'gripper' in event_id:
                 gripper_array = np.frombuffer(buffer_bytes, dtype=np.float64)
                 if gripper_array is not None:
                     with lock:
                         recv_gripper[event_id] = gripper_array
+            if 'hw' in event_id:
+                global recv_hw_info  # 声明引用全局变量
+                if buffer_bytes is not None:
+                    with lock:
+                        recv_hw_info = buffer_bytes.decode('utf-8')
 
         except zmq.Again:
             # 接收超时，继续循环
@@ -123,7 +128,7 @@ class OpenCVCamera:
         self.config = config
         self.camera_index = config.camera_index
         self.port = None
-
+    
         # Store the raw (capture) resolution from the config.
         self.capture_width = config.width
         self.capture_height = config.height
@@ -171,15 +176,15 @@ class RealmanManipulator:
         self.cameras = make_cameras_from_configs(self.config.cameras)
         recv_thread = threading.Thread(target=recv_server,daemon=True)
         recv_thread.start()
-
         self.is_connected = False
         self.logs = {}
         self.frame_counter = 0  # 帧计数器
-
         
     def get_motor_names(self, arm: dict[str, dict]) -> list:
         return [f"{arm}_{motor}" for arm, motors in arm.items() for motor in motors]
-
+    # @property
+    # def get_hw_info(self) -> str:
+    #     return recv_hw_info
     @property
     def camera_features(self) -> dict:
         cam_ft = {}
@@ -273,7 +278,6 @@ class RealmanManipulator:
             time.sleep(0.01)
 
         self.is_connected = True
-
     @property
     def features(self):
         return {**self.motor_features, **self.camera_features}
@@ -290,14 +294,19 @@ class RealmanManipulator:
         self, record_data=False, 
     ) -> None | tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         self.frame_counter += 1
-
+        # 保存当前hw_info并重置
+        current_hw_info = None
+        global recv_hw_info  # 声明使用全局变量
+        with lock:  # 确保线程安全
+            if recv_hw_info is not None:
+                current_hw_info = recv_hw_info
+                recv_hw_info = None  # 返回后重置为None
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(
                 "Realman is not connected. You need to run `robot.connect()`."
             )
         if not record_data:
             return
-        
         follower_joint = {}
         for name in self.follower_arms:
             for match_name in recv_jointstats:
@@ -346,7 +355,6 @@ class RealmanManipulator:
 
                     self.logs[f"read_follower_{name}_gripper_dt_s"] = time.perf_counter() - now
 
-        
         #记录当前关节角度 为30维:(7+7+1)*2
         state = []
         for name in self.follower_arms:
@@ -387,7 +395,7 @@ class RealmanManipulator:
         for name in self.cameras:
             obs_dict[f"observation.images.{name}"] = images[name]
         # print("end teleoperate record")
-
+        
         return obs_dict, action_dict
 
 
