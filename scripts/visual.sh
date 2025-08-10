@@ -1,5 +1,7 @@
-python operating_platform/dataset/visual/visualize_dataset_html.py \
-  --repo-id user/daoshui_zyy0627Copy_204
+# python operating_platform/dataset/visual/visualize_dataset_html.py \
+#   --repo-id user/daoshui_zyy0627Copy_204
 
-python operating_platform/dataset/visual/visualize_dataset_html.py \
-  --repo-id 20250705/user/''$'\345\217\240\350\241\243\346\234\215''_yance_244'
+  
+python -m operating_platform.dataset.visual.visualize_dataset_html \
+      --repo-id "20250805/user/叠衣服_0707_183" \
+      --host 0.0.0.0 --port 9090
