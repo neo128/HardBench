@@ -9,7 +9,7 @@ nodes:
       - image_depth
       - hw_single
     env:
-      DEVICE_SERIAL: 150622072280 
+      DEVICE_SERIAL: 151222070026 
 
   - id: camera_right
     path: ../../components/camera_rgbd_realsense/main.py
@@ -21,7 +21,7 @@ nodes:
       - image_depth
       - hw_single
     env:
-      DEVICE_SERIAL: 152222072189
+      DEVICE_SERIAL: 244222077206
 
   - id: camera_left
     path: ../../components/camera_rgbd_realsense/main.py
@@ -33,7 +33,7 @@ nodes:
       - image_depth
       - hw_single
     env:
-      DEVICE_SERIAL: 216322070529
+      DEVICE_SERIAL: 216322072452
 
   - id: arm_right
     path: ../../components/arm_normal_realman_v2/main.py

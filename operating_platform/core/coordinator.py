@@ -15,7 +15,7 @@ from deepdiff import DeepDiff
 from functools import cache
 from termcolor import colored
 from datetime import datetime
-
+import subprocess
 
 # from operating_platform.policy.config import PreTrainedConfig
 from operating_platform.robot.robots.configs import RobotConfig
@@ -31,7 +31,7 @@ from operating_platform.core.daemon import Daemon
 from operating_platform.core.record import Record, RecordConfig
 
 DEFAULT_FPS = 25
-
+file_local_path = None        
 @cache
 def is_headless():
     """Detects if python is running without a monitor."""
@@ -118,7 +118,6 @@ class Coordinator:
         self.server_url = server_url
         self.sio = socketio.Client()
         self.session = requests.Session()
-
         self.daemon = daemon
 
         self.running = False
@@ -131,7 +130,7 @@ class Coordinator:
             "image_top": 1,
             "image_right": 2,
         } # Default Config
-        
+
         # 注册事件处理
         self.sio.on('HEARTBEAT_RESPONSE', self.__on_heartbeat_response_handle)
         self.sio.on('connect', self.__on_connect_handle)
@@ -185,7 +184,8 @@ class Coordinator:
     def __on_robot_command_handle(self, data):
         """收到机器人命令回调"""
         print("收到服务器命令:", data)
-        
+        global file_local_path
+
         # 根据命令类型进行响应
         if data.get('cmd') == 'video_list':
             print("处理更新视频流命令...")
@@ -259,15 +259,16 @@ class Coordinator:
 
             data = self.record.stop(save=True)
             self.recording = False
-
+            file_local_path = data.get('file_message', {}).get('file_local_path')
             # 准备响应数据
             response_data = {
                 "msg": "success",
                 "data": data,
             }
+            print("获取到路径：", file_local_path)
             # 发送响应
             self.send_response('finish_collection', response_data['msg'], response_data)
-        
+
         elif data.get('cmd') == 'discard_collection':
             # 模拟处理丢弃采集
             print("处理丢弃采集命令...")
@@ -277,7 +278,7 @@ class Coordinator:
 
             # 发送响应
             self.send_response('discard_collection', "success")
-        
+
         elif data.get('cmd') == 'submit_collection':
             # 模拟处理提交采集
             print("处理提交采集命令...")
@@ -285,7 +286,35 @@ class Coordinator:
             
             # 发送响应
             self.send_response('submit_collection', "success")
-    
+        elif data.get('cmd') == 'start_replay':
+            print("开始进行replay")
+            # 要跑的脚本路径和参数
+            script_path = '/root/Operating-Platform/operating_platform/robot/robots/realman_v1/realman_replay.py'
+            print(data)
+            data_path =  file_local_path
+            json_file_dir = os.path.join(data_path, "meta")
+            os.makedirs(json_file_dir, exist_ok=True)
+            json_file = os.path.join(json_file_dir, "op_dataid.jsonl")
+            with open(json_file) as f:
+                last_line = f.readlines()[-1]
+            episode_index = json.loads(last_line)['episode_index']
+            parquet_path = os.path.join(
+            data_path, "data", "chunk-000",
+            f"episode_{episode_index:06d}.parquet"
+            )
+            cmd = [
+                'python', script_path,
+                '--parquet.path', parquet_path
+            ]
+            
+            response_data = {
+                "msg": "success",
+                "data": {"url":"www.baidu.com"},
+            }
+            self.send_response('start_replay', response_data['msg'], response_data)
+            subprocess.Popen(cmd, cwd=os.path.dirname(script_path))
+            self.send_response('end_replay', response_data['msg'], response_data)
+
 ####################### Client Send to Server ############################
     def send_heartbeat(self):
         """定期发送心跳"""

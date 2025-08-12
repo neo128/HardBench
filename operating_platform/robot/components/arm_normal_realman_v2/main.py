@@ -4,6 +4,7 @@ from dora import Node
 from Robotic_Arm.rm_robot_interface import *
 import numpy as np
 import time
+
 id = os.getenv("ARM_ID", "arm_right")       # ARM_ID: Arm identifier; defaults to "arm_right" if not set
 ip = os.getenv("ARM_IP", "192.168.1.18")    # ARM_IP: Connection IP address; defaults to "192.168.1.18" if not set
 port = int(os.getenv("ARM_PORT", "8080"))   # ARM_PORT: Connection port number; defaults to 8080 if not set
@@ -131,7 +132,6 @@ def main():
                 # --------------------------
             elif event["id"] == "stop":
                 main_arm.stop()
-        
         elif event_type == "ERROR":
             print("Event Error:" + event["error"])
     
