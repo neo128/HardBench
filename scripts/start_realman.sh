@@ -29,7 +29,7 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 cd ../operating_platform/robot/robots/realman_v1
 conda activate op-robot-realman
 dora run robot_realman_dataflow.yml &
-DORA_PID=$!++
+DORA_PID=$!
 
 # 2. 启动 coordinator
 cd  ../../../core/

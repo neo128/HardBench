@@ -95,7 +95,6 @@ class RealmanDualArm:
             # 选择对应的手臂
             arm = self.arm_left if arm_side == 'left' else self.arm_right
             
-            
             result = arm.rm_movej(joint, speed, 0, 0, 0)
             if result != 0:
                 print(f"{arm_side}臂运动命令发送失败，错误码: {result}")
