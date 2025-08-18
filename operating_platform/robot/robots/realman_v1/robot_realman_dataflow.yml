@@ -59,6 +59,7 @@ nodes:
       - jointstate
       - gripper
       - pose
+      - lift_height #因为左臂ip较小，升降机高度统一由左臂获取
       - hw_single
     env:
       ARM_IP: 169.254.128.18
@@ -93,6 +94,7 @@ nodes:
       gripper_right: arm_right/gripper
       pose_left: arm_left/pose
       pose_right: arm_right/pose
+      lift_height: arm_left/lift_height
       hw_info: monitor/hw_info
 
 

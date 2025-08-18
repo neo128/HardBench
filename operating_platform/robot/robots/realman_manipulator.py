@@ -39,7 +39,7 @@ recv_images = {}  # 缓存每个 event_id 的最新帧
 recv_jointstats = {} 
 recv_pose = {}
 recv_gripper = {}
-recv_hw_info = {}
+recv_lift_height = {}
 lock = threading.Lock()
 def recv_server():
     """接收数据线程"""
@@ -109,11 +109,12 @@ def recv_server():
                 if gripper_array is not None:
                     with lock:
                         recv_gripper[event_id] = gripper_array
-            if 'hw' in event_id:
-                global recv_hw_info  # 声明引用全局变量
-                if buffer_bytes is not None:
+            if 'lift_height' in event_id:
+                lift_height = np.frombuffer(buffer_bytes, dtype=np.int64)
+                if lift_height is not None:
                     with lock:
-                        recv_hw_info = buffer_bytes.decode('utf-8')
+                        recv_lift_height[event_id] = lift_height
+           
 
         except zmq.Again:
             # 接收超时，继续循环
@@ -182,9 +183,7 @@ class RealmanManipulator:
         
     def get_motor_names(self, arm: dict[str, dict]) -> list:
         return [f"{arm}_{motor}" for arm, motors in arm.items() for motor in motors]
-    # @property
-    # def get_hw_info(self) -> str:
-    #     return recv_hw_info
+
     @property
     def camera_features(self) -> dict:
         cam_ft = {}
@@ -294,13 +293,6 @@ class RealmanManipulator:
         self, record_data=False, 
     ) -> None | tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         self.frame_counter += 1
-        # 保存当前hw_info并重置
-        current_hw_info = None
-        global recv_hw_info  # 声明使用全局变量
-        with lock:  # 确保线程安全
-            if recv_hw_info is not None:
-                current_hw_info = recv_hw_info
-                recv_hw_info = None  # 返回后重置为None
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(
                 "Realman is not connected. You need to run `robot.connect()`."
@@ -364,7 +356,9 @@ class RealmanManipulator:
                 state.append(follower_pos[name])
             if name in follower_gripper:
                 state.append(follower_gripper[name])
-
+        # 单独添加升降机高度
+        state.append(torch.from_numpy(recv_lift_height['lift_height'].copy()))
+        
         state = torch.cat(state)
 
         #将关节目标位置添加到 action 列表中
@@ -376,8 +370,10 @@ class RealmanManipulator:
                 action.append(follower_pos[name])
             if name in follower_gripper:
                 action.append(follower_gripper[name])
+        # 单独添加升降机高度
+        action.append(torch.from_numpy(recv_lift_height['lift_height'].copy()))
+        
         action = torch.cat(action)
-
         images = {}
         for name in self.cameras:
             now = time.perf_counter()

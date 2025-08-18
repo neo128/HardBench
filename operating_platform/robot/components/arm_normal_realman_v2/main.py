@@ -68,7 +68,10 @@ class RealmanArm:
     def read_joint_degree(self):
         _num, joint_read = self.arm.rm_get_joint_degree()
         return joint_read
-    
+    def read_lift_height(self):
+        _num, lift_read = self.arm.rm_get_lift_state()
+        height = lift_read['pos']
+        return height
     def stop(self):
         self.arm.rm_set_arm_stop()
     
@@ -121,6 +124,9 @@ def main():
                 node.send_output("gripper", pa.array(gripper_actpos))
                 pose = main_arm.read_joint_eef_pose()
                 node.send_output("pose", pa.array(pose))
+                lift_height = main_arm.read_lift_height()
+                node.send_output("lift_height", pa.array([lift_height]))
+
             elif event["id"] == "hw_tick":
                 # ---------- 心跳 ----------
                 if time.time() - last_frame_ts > 2.0:
