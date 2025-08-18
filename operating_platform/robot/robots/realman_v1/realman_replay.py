@@ -132,7 +132,21 @@ class RealmanDualArm:
         except Exception as e:
             print(f"{arm_side}臂夹爪控制异常: {e}")
             return False
-    
+    def set_lift(self, arm_side, value):
+        """控制升降机"""
+        value = int(value)
+        try:
+            with self.lock:
+                if arm_side == 'left':
+                    result = self.arm_left.rm_set_lift_height(50, value, 0)
+                # print(f"返回的状态码为{result}, 夹爪的控制量为{value}")
+            if result != 0:
+                print(f"升降机控制失败，错误码: {result}")
+                return False
+            return True
+        except Exception as e:
+            print(f"升降机控制异常: {e}")
+            return False    
     def get_joint_dergree(self, arm_side):
         """获取当前关节角度"""
         with self.lock:
@@ -150,7 +164,12 @@ class RealmanDualArm:
             else:
                 _, gripper_pos = self.arm_right.rm_get_gripper_state()
         return np.array(gripper_pos['actpos'])    
-    
+    def get_lift_height(self, arm_side):
+        """获取当前升降机高度"""
+        with self.lock:
+            if arm_side == 'left':
+                 _num, lift_read = self.arm.rm_get_lift_state()
+        return np.array(lift_read['pos'])    
     def stop(self):
         """停止双臂运动"""
         with self.lock:
@@ -205,7 +224,7 @@ def arm_control_thread(
                 gripper_left = float(action_value[14])
                 joint_right = action_value[15:22]
                 gripper_right = float(action_value[29])
-
+                height = int(action_value[30])
                 # 调试信息
                 if debug and idx % 10 == 0:
                     print(f"第 {idx} 帧 - 左臂关节: {joint_left[:3]}... 右臂关节: {joint_right[:3]}...")
@@ -224,19 +243,21 @@ def arm_control_thread(
                     current_right = dual_arm.get_joint_dergree('right')
                     current_left_gripper = dual_arm.get_gripper_value('left')
                     current_right_gripper = dual_arm.get_gripper_value('right')
+                    current_height = dual_arm.get_lift_height('left')
                     left_error = np.abs(np.array(joint_left) - current_left)
                     right_error = np.abs(np.array(joint_right) - current_right)
                     gripper_left_error = np.abs(gripper_left - current_left_gripper)
                     gripper_right_error = np.abs(gripper_right - current_right_gripper)
-
-                    print(f"第 {idx} 帧 - 左臂误差: {left_error.mean():.2f}° 右臂误差: {right_error.mean():.2f}° 左夹爪误差：{gripper_left_error} 右夹爪误差：{gripper_right_error}")
+                    height_error = np.abs(height - current_height)
+                    print(f"第 {idx} 帧 - 左臂误差: {left_error.mean():.2f}° 右臂误差: {right_error.mean():.2f}° 左夹爪误差：{gripper_left_error} 右夹爪误差：{gripper_right_error} 高度误差：{height_error}")
                 except Exception as e:
                     print(f"计算误差失败: {e}")
 
                 # 控制夹爪
                 dual_arm.set_gripper('left', gripper_left)
                 dual_arm.set_gripper('right', gripper_right)
-
+                # 控制升降机
+                dual_arm.set_lift('left', height)
                 # 第一帧等待3秒，确保机械臂准备就绪
                 if idx == 0:
                     time.sleep(3)
