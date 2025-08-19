@@ -86,7 +86,7 @@ class RealmanDualArm:
         except Exception as e:
             print(f"右臂末端执行器初始化失败: {e}")
     
-    def movej_cmd(self, arm_side, joint, speed=30):
+    def movej_cmd(self, arm_side, joint, speed=80):
         """
         关节空间运动
         arm_side: 'left' 或 'right' 指定手臂
@@ -109,7 +109,7 @@ class RealmanDualArm:
 
         
         with self.lock:
-            result = arm.rm_movej_canfd(joint, True, 0)
+            result = arm.rm_movej_canfd(joint, False, 0) # 设置为低跟随模式
             if result != 0:
                 print(f"{arm_side}臂CANFD运动命令失败，错误码: {result}")
                 return False
@@ -121,9 +121,9 @@ class RealmanDualArm:
         try:
             with self.lock:
                 if arm_side == 'left':
-                    result = self.arm_left.rm_set_gripper_position(value, 0, 3)
+                    result = self.arm_left.rm_set_gripper_position(value, False, 1)
                 else:
-                    result = self.arm_right.rm_set_gripper_position(value, 0, 3)
+                    result = self.arm_right.rm_set_gripper_position(value, False, 1)
                 # print(f"返回的状态码为{result}, 夹爪的控制量为{value}")
             if result != 0:
                 print(f"{arm_side}臂夹爪控制失败，错误码: {result}")
@@ -134,12 +134,14 @@ class RealmanDualArm:
             return False
     def set_lift(self, arm_side, value):
         """控制升降机"""
+
         value = int(value)
+
         try:
             with self.lock:
                 if arm_side == 'left':
                     result = self.arm_left.rm_set_lift_height(50, value, 0)
-                # print(f"返回的状态码为{result}, 夹爪的控制量为{value}")
+                print(f"返回的状态码为{result}, 升降机的控制量为{value}")
             if result != 0:
                 print(f"升降机控制失败，错误码: {result}")
                 return False
@@ -168,7 +170,7 @@ class RealmanDualArm:
         """获取当前升降机高度"""
         with self.lock:
             if arm_side == 'left':
-                 _num, lift_read = self.arm.rm_get_lift_state()
+                 _num, lift_read = self.arm_left.rm_get_lift_state()
         return np.array(lift_read['pos'])    
     def stop(self):
         """停止双臂运动"""
@@ -255,9 +257,11 @@ def arm_control_thread(
 
                 # 控制夹爪
                 dual_arm.set_gripper('left', gripper_left)
+
                 dual_arm.set_gripper('right', gripper_right)
                 # 控制升降机
-                dual_arm.set_lift('left', height)
+                # dual_arm.set_lift('left', height)
+               
                 # 第一帧等待3秒，确保机械臂准备就绪
                 if idx == 0:
                     time.sleep(3)
@@ -298,7 +302,7 @@ class ReplayConfig:
     parquet: ParquetConfig  # Parquet 读取配置
     debug: bool = False  # 调试日志开关
     replay_speed: float = 1.0  # 重放速度倍率
-    use_canfd: bool = False  # 是否使用CANFD通信
+    use_canfd: bool = True  # 是否使用CANFD通信
 
 
 # --------------------------
