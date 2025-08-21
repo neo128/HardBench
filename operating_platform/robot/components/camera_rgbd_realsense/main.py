@@ -18,7 +18,6 @@ def camera_is_online(serial: str) -> bool:
             return True
     return False
 # --------------------------
-
 def main():
     """TODO: Add docstring."""
     flip = os.getenv("FLIP", "")
@@ -138,7 +137,6 @@ def main():
                 # --------------------------
         elif event_type == "ERROR":
             raise RuntimeError(event["error"])
-
 
 if __name__ == "__main__":
     main()

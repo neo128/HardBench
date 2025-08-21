@@ -55,10 +55,8 @@ if __name__ == "__main__":
                 # continue
                 pass
             time.sleep(0.001)
-            
         elif event["type"] == "STOP":
             break
-    
     # Close server 
     running_server = False
     # server_thread.join()

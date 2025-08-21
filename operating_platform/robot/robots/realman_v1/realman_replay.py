@@ -241,17 +241,19 @@ def arm_control_thread(
 
                 # 计算并打印误差（仅当获取到当前位置时）
                 try:
-                    current_left = dual_arm.get_joint_dergree('left')
-                    current_right = dual_arm.get_joint_dergree('right')
-                    current_left_gripper = dual_arm.get_gripper_value('left')
-                    current_right_gripper = dual_arm.get_gripper_value('right')
-                    current_height = dual_arm.get_lift_height('left')
-                    left_error = np.abs(np.array(joint_left) - current_left)
-                    right_error = np.abs(np.array(joint_right) - current_right)
-                    gripper_left_error = np.abs(gripper_left - current_left_gripper)
-                    gripper_right_error = np.abs(gripper_right - current_right_gripper)
-                    height_error = np.abs(height - current_height)
-                    print(f"第 {idx} 帧 - 左臂误差: {left_error.mean():.2f}° 右臂误差: {right_error.mean():.2f}° 左夹爪误差：{gripper_left_error} 右夹爪误差：{gripper_right_error} 高度误差：{height_error}")
+                    print(f"播放到第{idx}帧")
+                    if debug:
+                        current_left = dual_arm.get_joint_dergree('left')
+                        current_right = dual_arm.get_joint_dergree('right')
+                        current_left_gripper = dual_arm.get_gripper_value('left')
+                        current_right_gripper = dual_arm.get_gripper_value('right')
+                        current_height = dual_arm.get_lift_height('left')
+                        left_error = np.abs(np.array(joint_left) - current_left)
+                        right_error = np.abs(np.array(joint_right) - current_right)
+                        gripper_left_error = np.abs(gripper_left - current_left_gripper)
+                        gripper_right_error = np.abs(gripper_right - current_right_gripper)
+                        height_error = np.abs(height - current_height)
+                        print(f"第 {idx} 帧 - 左臂误差: {left_error.mean():.2f}° 右臂误差: {right_error.mean():.2f}° 左夹爪误差：{gripper_left_error} 右夹爪误差：{gripper_right_error} 高度误差：{height_error}")
                 except Exception as e:
                     print(f"计算误差失败: {e}")
 

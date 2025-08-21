@@ -65,9 +65,14 @@ class RealmanArm:
         clipped_gripper = max(0, min(100, gripper))
         self.arm.rm_write_single_register(self.peripheral, clipped_gripper)
 
-    def read_joint_degree(self):
-        _num, joint_read = self.arm.rm_get_joint_degree()
-        return joint_read
+    def read_joint(self):
+        _num, robot_info = self.arm.rm_get_current_arm_state()
+        position = robot_info['pose'][:3]
+        euler = robot_info['pose'][3:]
+        quaternion = self.arm.rm_algo_euler2quaternion(euler)
+        pose_7d = np.concatenate([position, quaternion])
+        joint_degree = robot_info['joint']
+        return joint_degree, pose_7d
     def read_lift_height(self):
         _num, lift_read = self.arm.rm_get_lift_state()
         height = lift_read['pos']
@@ -78,13 +83,7 @@ class RealmanArm:
     def disconnect(self):
         self.arm.rm_close_modbus_mode(1)
         self.is_connected = False
-    def read_joint_eef_pose(self):
-        flag, robot_info = self.arm.rm_get_current_arm_state()
-        position = robot_info['pose'][:3]
-        euler = robot_info['pose'][3:]
-        quaternion = self.arm.rm_algo_euler2quaternion(euler)
-        pose_7d = np.concatenate([position, quaternion])
-        return pose_7d
+        
     def rm_read_gripper_actpos(self):
         flag, gripper_dict = self.arm.rm_get_gripper_state()
         gripper_actpos = np.array([gripper_dict['actpos']]).astype(np.float64)
@@ -100,30 +99,13 @@ def main():
     # --------------------------
     for event in node:
         event_type = event["type"]
-
         if event_type == "INPUT":
-            # if event["id"] == "movej-cmd":
-            #     joint = event["value"].to_pylist()
-            #     main_arm.movej_cmd(joint)
-                
-            # if event["id"] == "movej":
-            #     joint = event["value"].to_pylist()
-            #     main_arm.movej_canfd(joint)
-
-            # if event["id"] == "gripper":
-            #     gripper = event["value"]
-            #     main_arm.write_single_register(gripper)
-
-            # if event["id"] == "read-joint":
-            #     read_joint = main_arm.read_joint_degree()
-            #     node.send_output("read-joint", pa.array(read_joint))
             if event["id"] == "tick":
-                jointstate = main_arm.read_joint_degree()
+                jointstate, pose = main_arm.read_joint()
                 node.send_output("jointstate", pa.array(jointstate))
+                node.send_output("pose", pa.array(pose))
                 gripper_actpos = main_arm.rm_read_gripper_actpos()
                 node.send_output("gripper", pa.array(gripper_actpos))
-                pose = main_arm.read_joint_eef_pose()
-                node.send_output("pose", pa.array(pose))
                 lift_height = main_arm.read_lift_height()
                 node.send_output("lift_height", pa.array([lift_height]))
 
@@ -133,14 +115,12 @@ def main():
                     status = STATUS_NODATA
                 else:
                     status = STATUS_OK
-
                 node.send_output("hw_single", status)
                 # --------------------------
             elif event["id"] == "stop":
                 main_arm.stop()
         elif event_type == "ERROR":
             print("Event Error:" + event["error"])
-    
     main_arm.disconnect()
 
 
