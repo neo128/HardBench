@@ -111,7 +111,6 @@ class Daemon:
             action = {"action": action}
         
         dt_s = time.perf_counter() - start_loop_t
-
         if self.fps is not None:
             busy_wait(1 / self.fps - dt_s)
 

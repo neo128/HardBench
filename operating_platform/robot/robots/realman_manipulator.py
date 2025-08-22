@@ -56,8 +56,7 @@ def recv_server():
                 # 解码图像
                 if 'depth' not in event_id:
                     img_array = np.frombuffer(buffer_bytes, dtype=np.uint8)
-                    frame = img_array.reshape((480, 640, 3))  # 已经是 RGB 格式
-                    # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame = img_array.reshape((480, 640, 3))  # 已经是 RGB 格式 
                     if frame is not None:
                         with lock:
                             # print(f"Received event_id = {event_id}")
@@ -90,7 +89,7 @@ def recv_server():
                         with lock:
                             # print(f"Received event_id = {event_id}")
                             recv_images[event_id] = rgb_depth
-            
+
             if 'jointstate' in event_id:
                 joint_array = np.frombuffer(buffer_bytes, dtype=np.float64)
                 if joint_array is not None:
