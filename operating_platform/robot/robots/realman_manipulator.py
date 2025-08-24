@@ -25,7 +25,7 @@ from operating_platform.robot.robots.configs import RealmanRobotConfig
 from operating_platform.robot.robots.com_configs.cameras import CameraConfig, OpenCVCameraConfig
 
 from operating_platform.robot.robots.camera import Camera
-
+from Robotic_Arm.rm_robot_interface import RoboticArm, rm_thread_mode_e, rm_peripheral_read_write_params_t 
 # IPC Address
 ipc_address = "ipc:///tmp/dora-zeromq"
 
@@ -163,16 +163,132 @@ def make_cameras_from_configs(camera_configs: dict[str, CameraConfig]) -> list[C
             raise ValueError(f"The camera type '{cfg.type}' is not valid.")
 
     return cameras
+class RM75Arm:
+    def __init__(self, ip, port, start_pos, joint_p_limit, joint_n_limit, fps, is_second):
+        if is_second:
+            self.arm =  RoboticArm()
+        else:
+            self.arm = RoboticArm(rm_thread_mode_e.RM_DUAL_MODE_E)
+        self.ip = ip
+        self.port = int(port)
+        self.start_pos = start_pos
+        self.joint_p_limit = joint_p_limit
+        self.joint_n_limit = joint_n_limit
+        self.fps = fps
+        self.lock = threading.Lock()  # 线程锁确保操作安全
+        float_joint = ctypes.c_float*7
+        self.joint_send=float_joint()
 
+        self.handle = self.arm.rm_create_robot_arm(self.ip, self.port)
+        if not self.handle:
+            raise ConnectionError(f"无法连接到 {self.ip}:{self.port}")
+    def movej_cmd(self, joint, speed=80):
+        """
+        关节空间运动
+        arm_side: 'left' 或 'right' 指定手臂
+        """
+        with self.lock:
+            # 选择对应的手臂
+            result = self.arm.rm_movej(joint, speed, 0, 0, 0)
+            if result != 0:
+                print(f"ip为{self.ip}臂运动命令发送失败，错误码: {result}")
+                return False
+            return True
+    
+    def movej_canfd(self, joint):
+        """通过CANFD发送关节运动命令"""
+        with self.lock:
+            result = self.arm.rm_movej_canfd(joint, False, 0) # 设置为低跟随模式
+            if result != 0:
+                print(f"ip为{self.ip}的臂CANFD运动命令失败，错误码: {result}")
+                return False
+            return True
+    
+    def set_gripper(self, value):
+        """控制夹爪"""
+        value = int(value)
+        try:
+            with self.lock:
+                result = self.arm.rm_set_gripper_position(value, False, 1)
+            if result != 0:
+                print(f"ip为{self.ip}的臂夹爪控制失败，错误码: {result}")
+                return False
+            return True
+        except Exception as e:
+            print(f"ip为{self.ip}的臂夹爪控制异常: {e}")
+            return False
+    def set_lift(self, arm_side, value):
+        """控制升降机"""
+
+        value = int(value)
+
+        try:
+            with self.lock:
+                result = self.arm.rm_set_lift_height(50, value, 0)
+            if result != 0:
+                print(f"升降机控制失败，错误码: {result}")
+                return False
+            return True
+        except Exception as e:
+            print(f"升降机控制异常: {e}")
+            return False    
+    def get_joint_dergree(self):
+        """获取当前关节角度"""
+        with self.lock:
+            _, joint_pos = self.arm.rm_get_joint_degree()
+        return np.array(joint_pos)
+    
+    def get_gripper_value(self, arm_side):
+        """获取当前夹爪角度"""
+        with self.lock:
+            _, gripper_pos = self.arm.rm_get_gripper_state()
+        return np.array(gripper_pos['actpos'])    
+    def get_lift_height(self, arm_side):
+        """获取当前升降机高度"""
+        with self.lock:
+            _num, lift_read = self.arm.rm_get_lift_state()
+        return np.array(lift_read['pos'])    
+    def stop(self):
+        """停止双臂运动"""
+        with self.lock:
+            self.arm.rm_set_arm_stop()
+        print("双臂已停止运动")
+    
+    def disconnect(self):
+        """断开双臂连接"""
+        try:
+            with self.lock:
+                self.arm.rm_close_modbus_mode(1)
+            print("双臂已断开连接")
+        except Exception as e:
+            print(f"断开连接失败: {e}")
 class RealmanManipulator:
     def __init__(self, config: RealmanRobotConfig):
         self.config = config
         self.robot_type = self.config.type
-        # 需要修改
-        self.follower_arms = {}
-        self.follower_arms["left"] = self.config.left_leader_arm.motors
-        self.follower_arms["right"] =self.config.right_leader_arm.motors
 
+        self.follower_arms = {}
+        self.leader_arms = {}
+        self.leader_arms['right'] = self.config.right_leader_arm.motors
+        self.leader_arms['left'] = self.config.left_leader_arm.motors
+        self.follower_arms["left"] = RM75Arm(
+            ip = self.config.left_arm_config['ip'], 
+            port = self.config.left_arm_config['port'],
+            start_pos = self.config.left_arm_config['start_pose'],
+            joint_p_limit = self.config.left_arm_config['joint_p_limit'],
+            joint_n_limit = self.config.left_arm_config['joint_n_limit'],
+            fps = self.config.left_arm_config['fps'],
+            is_second = False, 
+        )
+        self.follower_arms["right"] = RM75Arm(
+            ip = self.config.right_arm_config['ip'], 
+            port = self.config.left_arm_config['port'],
+            start_pos = self.config.right_arm_config['start_pose'],
+            joint_p_limit = self.config.right_arm_config['joint_p_limit'],
+            joint_n_limit = self.config.right_arm_config['joint_n_limit'],
+            fps = self.config.right_arm_config['fps'],
+            is_second = True, 
+        )
         self.cameras = make_cameras_from_configs(self.config.cameras)
         recv_thread = threading.Thread(target=recv_server,daemon=True)
         recv_thread.start()
@@ -198,8 +314,8 @@ class RealmanManipulator:
     
     @property
     def motor_features(self) -> dict:
-        action_names = self.get_motor_names(self.follower_arms)
-        state_names = self.get_motor_names(self.follower_arms)
+        action_names = self.get_motor_names(self.leader_arms)
+        state_names = self.get_motor_names(self.leader_arms)
         print(f"期望的状态名字数量{state_names}")
         return {
             "action": {
@@ -394,7 +510,52 @@ class RealmanManipulator:
         return obs_dict, action_dict
 
 
+    def send_action(self, action: torch.Tensor):
+        """The provided action is expected to be a vector."""
+        if not self.is_connected:
+            raise RobotDeviceNotConnectedError(
+                "KochRobot is not connected. You need to run `robot.connect()`."
+            )
+        from_idx = 0
+        to_idx = 7
+        index = 0
+        pos_num = 7
+        # 0-7
+        # 
+        action_sent = []
+        for name in self.follower_arms:
+            if index != 1:
+                goal_pos = action[index*8+from_idx:index*8+to_idx]
+                gripper_pos = action[index*8+from_idx+pos_num]
+                goal_pos = torch.cat((goal_pos, torch.tensor([gripper_pos])))
+            else:
+                goal_pos = action[index*8+pos_num:index*8+pos_num+to_idx]
+                gripper_pos = action[index*8+pos_num+pos_num+to_idx]
+                goal_pos = torch.cat((goal_pos, torch.tensor([gripper_pos])))
+            index+=1
+            for i in range(7):
+                # joint_send[i] = max(self.follower_arms[name].joint_n_limit[i], min(self.follower_arms[name].joint_p_limit[i], goal_pos[i]))
+                self.follower_arms[name].joint_send[i] = goal_pos[i]
+            
+            self.follower_arms[name].movej_canfd(self.follower_arms[name].joint_send)
+            # if (goal_pos[7]<50):
+            #     # ret_giper = self.pDll.Write_Single_Register(self.nSocket, 1, 40000, int(follower_goal_pos_array[7]), 1, 1)
+            #     ret_giper = self.pDll.Write_Single_Register(self.nSocket, 1, 40000, 0 , 1, 1)
+            #     self.gipflag_send=0
+            # #状态为闭合，且需要张开夹爪
+            # if (goal_pos[7]>=50):
+            #     # ret_giper = self.pDll.Write_Single_Register(self.nSocket, 1, 40000, int(follower_goal_pos_array[7]), 1, 1)
+            #     ret_giper = self.pDll.Write_Single_Register(self.nSocket, 1, 40000, 100, 1, 1)
+            #     self.gipflag_send=1
+            
+            gripper_value = goal_pos[7]
+            # 后续添加夹爪控制条件
+            self.follower_arms[name].set_gripper(gripper_value)
+            self.frame_counter += 1
 
+            action_sent.append(goal_pos)
+
+        return torch.cat(action_sent)
     def disconnect(self):
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(

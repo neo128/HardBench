@@ -5,7 +5,7 @@ from pathlib import Path
 from pprint import pformat
 import time
 import numpy as np
-import pandas as pd
+import pandas as pdd
 import pyarrow.parquet as pq
 from draccus import wrap
 from typing import Union, List
@@ -262,7 +262,7 @@ def arm_control_thread(
 
                 dual_arm.set_gripper('right', gripper_right)
                 # 控制升降机
-                # dual_arm.set_lift('left', height)
+                dual_arm.set_lift('left', height)
                
                 # 第一帧等待3秒，确保机械臂准备就绪
                 if idx == 0:

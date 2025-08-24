@@ -108,7 +108,6 @@ def main():
                 node.send_output("gripper", pa.array(gripper_actpos))
                 lift_height = main_arm.read_lift_height()
                 node.send_output("lift_height", pa.array([lift_height]))
-
             elif event["id"] == "hw_tick":
                 # ---------- 心跳 ----------
                 if time.time() - last_frame_ts > 2.0:

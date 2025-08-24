@@ -294,15 +294,14 @@ class AdoraDualRobotConfig(RobotConfig):
 class RealmanRobotConfig(RobotConfig):
 
     right_arm_config = {}
-    right_arm_config['usb_port'] = "/dev/ttyUSB0"
+    right_arm_config['port'] = "8080"
     right_arm_config['ip'] = "169.254.128.19"
     right_arm_config['fps'] = 25
-    right_arm_config['calibration_dir'] = ".cache/calibration/adora_dual_right"
     right_arm_config['start_pose'] = [90.0, 90.0, -90.0, -90.0, 0.0, 0.0, 0.0]
     right_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
     right_arm_config['joint_n_limit'] = [-169.0, -102.0, -169.0, -167.0, -169.0, -87.0, -169.0]
     right_leader_arm = DynamixelMotorsBusConfig(
-        port=right_arm_config['usb_port'],
+        port=right_arm_config['port'],
         motors={
             "joint_1": [1, "realman-motor"],
             "joint_2": [2, "realman-motor"],
@@ -325,15 +324,14 @@ class RealmanRobotConfig(RobotConfig):
     )
 
     left_arm_config = {}
-    left_arm_config['usb_port'] = "/dev/ttyUSB1"
+    left_arm_config['port'] = "8080"
     left_arm_config['ip'] = "169.254.128.18"
     left_arm_config['fps'] = 25
-    left_arm_config['calibration_dir'] = ".cache/calibration/adora_dual_left"
     left_arm_config['start_pose'] = [-90.0, 90.0, 90.0, -90.0, 0.0, 0.0, 0.0]
     left_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
     left_arm_config['joint_n_limit'] = [-169.0, -102.0, -169.0, -167.0, -169.0, -87.0, -169.0]
     left_leader_arm = DynamixelMotorsBusConfig(
-        port=left_arm_config['usb_port'],
+        port=left_arm_config['port'],
         motors={
             "joint_1": [1, "realman-motor"],
             "joint_2": [2, "realman-motor"],

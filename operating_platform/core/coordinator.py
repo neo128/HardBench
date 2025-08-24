@@ -7,6 +7,7 @@ import socketio
 import requests
 import traceback
 import threading
+import queue
 
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -21,17 +22,25 @@ import subprocess
 from operating_platform.robot.robots.configs import RobotConfig
 from operating_platform.robot.robots.utils import make_robot_from_config, Robot, busy_wait, safe_disconnect
 from operating_platform.utils import parser
-from operating_platform.utils.utils import has_method, init_logging, log_say
+from operating_platform.utils.utils import has_method, init_logging, log_say, get_current_git_branch, git_branch_log
+from operating_platform.utils.data_file import find_epindex_from_dataid_json
+
 from operating_platform.utils.data_file import check_disk_space
 from operating_platform.utils.constants import DOROBOT_DATASET
 from operating_platform.dataset.dorobot_dataset import *
+from operating_platform.dataset.visual.visual_dataset import visualize_dataset
 
 # from operating_platform.core._client import Coordinator
 from operating_platform.core.daemon import Daemon
 from operating_platform.core.record import Record, RecordConfig
+from operating_platform.core.replay import DatasetReplayConfig, ReplayConfig, replay
+
 import asyncio, aiohttp
+
+RERUN_WEB_PORT = 9095
+RERUN_WS_PORT = 9185
 DEFAULT_FPS = 25
-file_local_path = None        
+
 @cache
 def is_headless():
     """Detects if python is running without a monitor."""
@@ -125,6 +134,8 @@ class Coordinator:
         self.running = False
         self.heartbeat_interval = 2
         self.recording = False
+        self.replaying = False
+
         self.cameras = {"image_top": 1, "image_right": 2}
 
         # 2. 注册异步回调
@@ -177,8 +188,10 @@ class Coordinator:
     async def __on_robot_command_handle(self, data):
         """收到机器人命令回调"""
         print("收到服务器命令:", data)
-        global file_local_path
-
+        global task_id
+        global task_name
+        global task_data_id
+        global repo_id
         # 根据命令类型进行响应
         if data.get('cmd') == 'video_list':
             print("处理更新视频流命令...")
@@ -200,12 +213,15 @@ class Coordinator:
                 await self.send_response('start_collection', "存储空间不足,小于2GB")
             msg = data.get('msg')
 
+            if self.replaying == True:
+                await self.send_response('start_collection', "fail")
+                print("Replay is running, cannot start collection.")
+                return
             if self.recording == True:
                 # self.send_response('start_collection', "fail")
 
                 self.record.stop(save=False)
                 self.recording = False
-
 
             self.recording = True
 
@@ -249,16 +265,17 @@ class Coordinator:
         elif data.get('cmd') == 'finish_collection':
             # 模拟处理完成采集
             print("处理完成采集命令...")
-
+            if self.replaying == True:
+                await self.send_response('finish_collection', "fail")
+                print("Replay is running, cannot finish collection.")
+                return
             data = self.record.stop(save=True)
             self.recording = False
-            file_local_path = data.get('file_message', {}).get('file_local_path')
             # 准备响应数据
             response_data = {
                 "msg": "success",
                 "data": data,
             }
-            print("获取到路径：", file_local_path)
             # 发送响应
             await self.send_response('finish_collection', response_data['msg'], response_data)
 
@@ -276,37 +293,105 @@ class Coordinator:
             # 模拟处理提交采集
             print("处理提交采集命令...")
             time.sleep(0.01)  # 模拟处理时间
-            
+            if self.replaying == True:
+                await self.send_response('submit_collection', "fail")
+                print("Replay is running, cannot submit collection.")
+                return
             # 发送响应
             await self.send_response('submit_collection', "success")
         elif data.get('cmd') == 'start_replay':
-            print("开始进行replay")
-            # 要跑的脚本路径和参数
-            script_path = '/root/Operating-Platform/operating_platform/robot/robots/realman_v1/realman_replay.py'
-            print(data)
-            data_path =  file_local_path
-            json_file_dir = os.path.join(data_path, "meta")
-            os.makedirs(json_file_dir, exist_ok=True)
-            json_file = os.path.join(json_file_dir, "op_dataid.jsonl")
-            with open(json_file) as f:
-                last_line = f.readlines()[-1]
-            episode_index = json.loads(last_line)['episode_index']
-            parquet_path = os.path.join(
-            data_path, "data", "chunk-000",
-            f"episode_{episode_index:06d}.parquet"
-            )
-            cmd = [
-                'python', script_path,
-                '--parquet.path', parquet_path
-            ]
-            
+            print("处理开始回放命令...")
+            # msg拿不到信息
+            # msg = data.get()
+            if self.recording == True:
+                await self.send_response('start_replay', "fail")
+                print("Recording is running, cannot start replay.")
+                return
+            if self.replaying == True:
+                await self.send_response('start_replay', "fail")
+                print("Replay is already running.")
+                return
+            self.replaying = True
+            # task_id = msg.get('task_id')
+            # task_name = msg.get('task_name')
+            # task_data_id = msg.get('task_data_id')
+            # repo_id=f"{task_name}_{task_id}"
+
+            date_str = datetime.now().strftime("%Y%m%d")
+
+            # 构建目标目录路径
+            dataset_path = DOROBOT_DATASET
+            git_branch_name = get_current_git_branch()
+            if "release" in git_branch_name:
+                target_dir = dataset_path / date_str / "user" / repo_id
+            elif "dev"  in git_branch_name:
+                target_dir = dataset_path / date_str / "user" / repo_id
+            else:
+                target_dir = dataset_path / date_str / "dev" / repo_id
+
+            ep_index = find_epindex_from_dataid_json(target_dir, task_data_id)
+            dataset = DoRobotDataset(repo_id, root=target_dir, episodes=[ep_index])
+
+            # 发送响应
+
             response_data = {
-                "msg": "success",
-                "data": {"url":"www.baidu.com"},
+                "data": {
+                    "url": f"http://localhost:{RERUN_WEB_PORT}/?url=ws://localhost:{RERUN_WS_PORT}",
+                },
             }
-            await self.send_response('start_replay', response_data['msg'], response_data)
-            subprocess.Popen(cmd, cwd=os.path.dirname(script_path))
-            await self.send_response('end_replay', response_data['msg'], response_data)
+            await self.send_response('start_replay', "success", response_data)
+            print(f"开始回放数据集: {repo_id}, 目标目录: {target_dir}, 任务数据ID: {task_data_id}, 回放索引: {ep_index}")
+            replay_dataset_cfg = DatasetReplayConfig(repo_id, ep_index, target_dir, fps=DEFAULT_FPS)
+            replay_cfg = ReplayConfig(self.daemon.robot, replay_dataset_cfg)
+
+            # 用于线程间通信的异常队列
+            error_queue = queue.Queue()
+            # 用于通知replay线程停止的事件
+            stop_event = threading.Event()
+
+            def visual_worker():
+                """visual工作线程函数"""
+                try:
+                    # 主线程执行可视化（阻塞直到窗口关闭或超时）
+                    visualize_dataset(
+                        dataset,
+                        mode="distant",
+                        episode_index=0,
+                        web_port=RERUN_WEB_PORT,
+                        ws_port=RERUN_WS_PORT,
+                        stop_event=stop_event  # 需要replay函数支持stop_event参数
+                    )
+                except Exception as e:
+                    error_queue.put(e)
+
+            # 创建并启动replay线程
+            visual_thread = threading.Thread(
+                target=visual_worker,
+                name="VisualThread",
+                daemon=True  # 设置为守护线程，主程序退出时自动终止
+            )
+            visual_thread.start()
+
+            try:
+                replay(replay_cfg)
+
+            finally:
+                # 无论可视化是否正常结束，都通知replay线程停止
+                stop_event.set()
+                # 等待replay线程安全退出（设置合理超时）
+                visual_thread.join(timeout=2.0)
+                
+                # 检查线程是否已退出
+                if visual_thread.is_alive():
+                    print("Warning: Visual thread did not exit cleanly")
+                
+                # 处理子线程异常
+                try:
+                    error = error_queue.get_nowait()
+                    raise RuntimeError(f"Visual failed in thread: {str(error)}") from error
+                except queue.Empty:
+                    pass
+            self.replaying = False
 
 ####################### Client Send to Server ############################
     async def send_heartbeat_loop(self):
@@ -412,7 +497,6 @@ async def async_main(cfg: ControlPipelineConfig):
     """原来的 async 主体"""
     init_logging()
     logging.info(pformat(asdict(cfg)))
-
     daemon = Daemon(fps=DEFAULT_FPS)
     daemon.start(cfg.robot)
 
