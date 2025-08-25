@@ -71,7 +71,7 @@ class RecordConfig():
     fps: int = 30
 
     # Encode frames in the dataset into video
-    video: bool = True
+    video: bool = False
 
     # Upload dataset to Hugging Face hub.
     push_to_hub: bool = False
