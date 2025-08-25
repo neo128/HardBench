@@ -132,9 +132,11 @@ class Coordinator:
         )
         self.daemon = daemon
         self.running = False
+        self.last_heartbeat_time = 0
         self.heartbeat_interval = 2
         self.recording = False
         self.replaying = False
+        self.saveing = False
 
         self.cameras = {"image_top": 1, "image_right": 2}
 
@@ -153,7 +155,6 @@ class Coordinator:
         await self.sio.connect(self.server_url)
         # 3. 用 asyncio 任务发心跳
         asyncio.create_task(self.send_heartbeat_loop())
-        print("异步客户端已启动")
 
     
     async def stop(self):
@@ -220,7 +221,8 @@ class Coordinator:
             if self.recording == True:
                 # self.send_response('start_collection', "fail")
 
-                self.record.stop(save=False)
+                self.record.stop()
+                self.record.discard()
                 self.recording = False
 
             self.recording = True
@@ -235,7 +237,14 @@ class Coordinator:
 
             # 构建目标目录路径
             dataset_path = DOROBOT_DATASET
-            target_dir = dataset_path / date_str / "user" / repo_id
+
+            git_branch_name = get_current_git_branch()
+            if "release" in git_branch_name:
+                target_dir = dataset_path / date_str / "user" / repo_id
+            elif "dev"  in git_branch_name:
+                target_dir = dataset_path / date_str / "dev" / repo_id
+            else:
+                target_dir = dataset_path / date_str / "dev" / repo_id
 
             # 判断是否存在对应文件夹以决定是否启用恢复模式
             resume = False
@@ -256,11 +265,15 @@ class Coordinator:
 
             record_cfg = RecordConfig(fps=DEFAULT_FPS, repo_id=repo_id, resume=resume, root=target_dir)
             self.record = Record(fps=DEFAULT_FPS, robot=self.daemon.robot, daemon=self.daemon, record_cfg = record_cfg, record_cmd=msg)
-            self.record.time = countdown_seconds
-            self.record.start()
-
             # 发送响应
             await self.send_response('start_collection', "success")
+            # 开始采集倒计时
+            print(f"开始采集倒计时{countdown_seconds}s...")
+            time.sleep(countdown_seconds)
+
+            # 开始采集
+            self.record.start()
+
         
         elif data.get('cmd') == 'finish_collection':
             # 模拟处理完成采集
@@ -269,12 +282,22 @@ class Coordinator:
                 await self.send_response('finish_collection', "fail")
                 print("Replay is running, cannot finish collection.")
                 return
-            data = self.record.stop(save=True)
-            self.recording = False
-            # 准备响应数据
+            
+            if not self.saveing and self.record.save_data is None:
+                # 如果不在保存状态，立即停止记录并保存
+                self.saveing= True
+                self.record.stop()
+                self.record.save()
+                self.recording = False
+                self.saveing= False
+            
+            # 如果正在保存，循环等待直到 self.record.save_data 有数据
+            while self.saveing:
+                time.sleep(0.1)  # 避免CPU过载，适当延迟
+            # 此时无论 saveing 状态如何，self.record.save_data 已有有效数据
             response_data = {
                 "msg": "success",
-                "data": data,
+                "data": self.record.save_data,
             }
             # 发送响应
             await self.send_response('finish_collection', response_data['msg'], response_data)
@@ -283,7 +306,13 @@ class Coordinator:
             # 模拟处理丢弃采集
             print("处理丢弃采集命令...")
 
-            self.record.stop(save=False)
+            if self.replaying == True:
+                self.send_response('discard_collection', "fail")
+                print("Replay is running, cannot discard collection.")
+                return
+            
+            self.record.stop()
+            self.record.discard()
             self.recording = False
 
             # 发送响应
@@ -293,12 +322,14 @@ class Coordinator:
             # 模拟处理提交采集
             print("处理提交采集命令...")
             time.sleep(0.01)  # 模拟处理时间
+
             if self.replaying == True:
                 await self.send_response('submit_collection', "fail")
                 print("Replay is running, cannot submit collection.")
                 return
             # 发送响应
             await self.send_response('submit_collection', "success")
+
         elif data.get('cmd') == 'start_replay':
             print("处理开始回放命令...")
             # msg拿不到信息
@@ -325,11 +356,12 @@ class Coordinator:
             if "release" in git_branch_name:
                 target_dir = dataset_path / date_str / "user" / repo_id
             elif "dev"  in git_branch_name:
-                target_dir = dataset_path / date_str / "user" / repo_id
+                target_dir = dataset_path / date_str / "dev" / repo_id
             else:
                 target_dir = dataset_path / date_str / "dev" / repo_id
 
             ep_index = find_epindex_from_dataid_json(target_dir, task_data_id)
+
             dataset = DoRobotDataset(repo_id, root=target_dir, episodes=[ep_index])
 
             # 发送响应
@@ -341,6 +373,7 @@ class Coordinator:
             }
             await self.send_response('start_replay', "success", response_data)
             print(f"开始回放数据集: {repo_id}, 目标目录: {target_dir}, 任务数据ID: {task_data_id}, 回放索引: {ep_index}")
+
             replay_dataset_cfg = DatasetReplayConfig(repo_id, ep_index, target_dir, fps=DEFAULT_FPS)
             replay_cfg = ReplayConfig(self.daemon.robot, replay_dataset_cfg)
 
@@ -395,12 +428,18 @@ class Coordinator:
 
 ####################### Client Send to Server ############################
     async def send_heartbeat_loop(self):
+        """定期发送心跳"""
         while self.running:
-            try:
-                await self.sio.emit('HEARTBEAT')
-            except Exception as e:
-                print("发送心跳失败:", e)
-            await asyncio.sleep(self.heartbeat_interval)
+            current_time = time.time()
+            if current_time - self.last_heartbeat_time >= self.heartbeat_interval:
+                try:
+                    await self.sio.emit('HEARTBEAT')
+                    self.last_heartbeat_time = current_time
+                except Exception as e:
+                    print(f"发送心跳失败: {e}")
+            time.sleep(1)
+            await self.sio.wait()
+
 
     # 发送回复请求
     async def send_response(self, cmd, msg, data=None):

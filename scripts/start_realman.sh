@@ -12,8 +12,9 @@ DORA_PID=$!
 # 2. 启动 coordinator
 cd  ../../../core/
 conda activate op
-pip install Robotic_Arm rerun-sdk  av
+pip install Robotic_Arm rerun-sdk  av sounddevice
 exec python coordinator.py --robot.type=realman
+
 
 
 

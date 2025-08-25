@@ -290,6 +290,8 @@ class RealmanManipulator:
             is_second = True, 
         )
         self.cameras = make_cameras_from_configs(self.config.cameras)
+        self.microphones = self.config.microphones
+
         recv_thread = threading.Thread(target=recv_server,daemon=True)
         recv_thread.start()
         self.is_connected = False

@@ -15,7 +15,7 @@ from datasets import concatenate_datasets, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.constants import REPOCARD_NAME
 from huggingface_hub.errors import RevisionNotFoundError
-import time
+
 
 from operating_platform.dataset.compute_stats import aggregate_stats, compute_episode_stats
 from operating_platform.dataset.image_writer import AsyncImageWriter, write_image
@@ -29,7 +29,6 @@ from operating_platform.utils.constants import DOROBOT_DATASET
 from operating_platform.utils.dataset import (
     DEFAULT_FEATURES,
     DEFAULT_IMAGE_PATH,
-    DEFAULT_IMAGE_PATH_DEPTH,
     INFO_PATH,
     TASKS_PATH,
     append_jsonlines,
@@ -65,7 +64,6 @@ from operating_platform.utils.video import (
     decode_video_frames_torchvision,
     encode_video_frames,
     get_video_info,
-    encode_depth_video_frames,
 )
 from operating_platform.robot.robots.utils import Robot
 
@@ -257,8 +255,8 @@ class DoRobotDatasetMetadata:
 
         self.info["splits"] = {"train": f"0:{self.info['total_episodes']}"}
         self.info["total_videos"] += len(self.video_keys)
-        # if len(self.video_keys) > 0:
-        #     self.update_video_info()
+        if len(self.video_keys) > 0:
+            self.update_video_info()
 
         write_info(self.info, self.root)
 
@@ -521,7 +519,7 @@ class DoRobotDataset(torch.utils.data.Dataset):
         try:
             if force_cache_sync:
                 raise FileNotFoundError
-            #assert all((self.root / fpath).is_file() for fpath in self.get_episodes_file_paths())
+            assert all((self.root / fpath).is_file() for fpath in self.get_episodes_file_paths())
             self.hf_dataset = self.load_hf_dataset()
         except (AssertionError, FileNotFoundError, NotADirectoryError):
             self.revision = get_safe_version(self.repo_id, self.revision)
@@ -799,21 +797,9 @@ class DoRobotDataset(torch.utils.data.Dataset):
             ep_buffer[key] = current_ep_idx if key == "episode_index" else []
         return ep_buffer
 
-    # def _get_image_file_path(self, episode_index: int, image_key: str, frame_index: int) -> Path:
-    #     fpath = DEFAULT_IMAGE_PATH.format(
-    #         image_key=image_key, episode_index=episode_index, frame_index=frame_index
-    #     )
-    #     return self.root / fpath
-    
     def _get_image_file_path(self, episode_index: int, image_key: str, frame_index: int) -> Path:
-        # 检查key是否包含深度图标识
-        is_depth_key = "depth" in image_key.lower()  # 或其他命名规则
-        template = DEFAULT_IMAGE_PATH_DEPTH if is_depth_key else DEFAULT_IMAGE_PATH
-        
-        fpath = template.format(
-            image_key=image_key, 
-            episode_index=episode_index, 
-            frame_index=frame_index
+        fpath = DEFAULT_IMAGE_PATH.format(
+            image_key=image_key, episode_index=episode_index, frame_index=frame_index
         )
         return self.root / fpath
 
@@ -910,15 +896,15 @@ class DoRobotDataset(torch.utils.data.Dataset):
             if key in ["index", "episode_index", "task_index"] or ft["dtype"] in ["image", "video"]:
                 continue
             episode_buffer[key] = np.stack(episode_buffer[key])
-        self._wait_image_writer()
 
+        self._wait_image_writer()
         self._save_episode_table(episode_buffer, episode_index)
         ep_stats = compute_episode_stats(episode_buffer, self.features)
 
-        # if len(self.meta.video_keys) > 0:
-        #     video_paths = self.encode_episode_videos(episode_index)
-        #     for key in self.meta.video_keys:
-        #         episode_buffer[key] = video_paths[key]
+        if len(self.meta.video_keys) > 0:
+            video_paths = self.encode_episode_videos(episode_index)
+            for key in self.meta.video_keys:
+                episode_buffer[key] = video_paths[key]
 
         # `meta.save_episode` be executed after encoding the videos
         self.meta.save_episode(episode_index, episode_length, episode_tasks, ep_stats)
@@ -933,16 +919,16 @@ class DoRobotDataset(torch.utils.data.Dataset):
             self.tolerance_s,
         )
 
-        # video_files = list(self.root.rglob("*.avi"))
-        # assert len(video_files) == self.num_episodes * len(self.meta.video_keys)
+        video_files = list(self.root.rglob("*.mp4"))
+        assert len(video_files) == self.num_episodes * len(self.meta.video_keys)
 
         parquet_files = list(self.root.rglob("*.parquet"))
         assert len(parquet_files) == self.num_episodes
 
-        # # delete images
-        # img_dir = self.root / "images"
-        # if img_dir.is_dir():
-        #     shutil.rmtree(self.root / "images")
+        # delete images
+        img_dir = self.root / "images"
+        if img_dir.is_dir():
+            shutil.rmtree(self.root / "images")
 
         if not episode_data:  # Reset the buffer
             self.episode_buffer = self.create_episode_buffer()
@@ -973,23 +959,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
                         print(f"[ERROR] 删除失败！文件仍存在: {video_path}")
                 else:
                     print(f"[SKIP] 视频文件不存在，跳过删除: {video_path}")
-        
-        # 处理图片文件
-        if len(self.meta.video_keys) > 0:
-            print(f"[INFO] 正在处理图片文件 (keys: {self.meta.video_keys})")
-            for key in self.meta.video_keys:
-                image_path = os.path.dirname(self._get_image_file_path(ep_idx, key,frame_index=0))
-                if os.path.isdir(image_path):
-                    print(f"[DEBUG] 删除图片文件: {image_path}")
-                    shutil.rmtree(image_path)
-                    # 验证删除结果
-                    if not os.path.exists(image_path):
-                        print(f"[SUCCESS] 成功删除图片文件: {image_path}")
-                    else:
-                        print(f"[ERROR] 删除失败！文件仍存在: {image_path}")
-                else:
-                    print(f"[SKIP] 图片文件不存在，跳过删除: {image_path}")
-                    
 
         # 处理数据文件
         data_path = self.root / self.meta.get_data_file_path(ep_idx)
@@ -1024,13 +993,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
         if episode_index == 0:
             shutil.rmtree(self.root)
         else:
-            # if self.image_writer is not None:
-            #     for cam_key in self.meta.camera_keys:
-            #         img_dir = self._get_image_file_path(
-            #             episode_index=episode_index, image_key=cam_key, frame_index=0
-            #         ).parent.parent
-            #         if img_dir.is_dir():
-            #             shutil.rmtree(img_dir)
             if self.image_writer is not None:
                 for cam_key in self.meta.camera_keys:
                     img_dir = self._get_image_file_path(
@@ -1092,10 +1054,7 @@ class DoRobotDataset(torch.utils.data.Dataset):
             img_dir = self._get_image_file_path(
                 episode_index=episode_index, image_key=key, frame_index=0
             ).parent
-            if 'depth' in str(video_path):
-                encode_depth_video_frames(img_dir, video_path, self.fps, overwrite=True)
-            else:
-                encode_video_frames(img_dir, video_path, self.fps, overwrite=True)
+            encode_video_frames(img_dir, video_path, self.fps, overwrite=True)
 
         return video_paths
 

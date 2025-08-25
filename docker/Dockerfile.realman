@@ -102,3 +102,4 @@ RUN conda run -n op pip cache purge && \
 CMD ["/bin/bash"]
 
 # docker build -f docker/Dockerfile.realman -t operating_platform .  周一重新打一个镜像
+# 缺少sudo apt-get install portaudio19-dev
