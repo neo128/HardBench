@@ -15,6 +15,7 @@ from datasets import concatenate_datasets, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.constants import REPOCARD_NAME
 from huggingface_hub.errors import RevisionNotFoundError
+import shutil  # 需要导入shutil模块
 
 
 from operating_platform.dataset.compute_stats import aggregate_stats, compute_episode_stats
@@ -71,7 +72,7 @@ from operating_platform.utils.video import (
 from operating_platform.robot.robots.utils import Robot
 
 
-DOROBOT_DATASET_VERSION = "v1.0"
+DOROBOT_DATASET_VERSION = "v2.1"
 
 
 class DoRobotDatasetMetadata:
@@ -357,7 +358,6 @@ class DoRobotDatasetMetadata:
         obj = cls.__new__(cls)
         obj.repo_id = repo_id
         obj.root = Path(root) if root is not None else DOROBOT_DATASET / repo_id
-
         obj.root.mkdir(parents=True, exist_ok=True)
 
         if robot is not None:
@@ -935,7 +935,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
         self._wait_image_writer()
         self._save_episode_table(episode_buffer, episode_index)
         ep_stats = compute_episode_stats(episode_buffer, self.features)
-
         if len(self.meta.video_keys) > 0:
             video_paths = self.encode_episode_videos(episode_index)
             for key in self.meta.video_keys:
@@ -1008,7 +1007,7 @@ class DoRobotDataset(torch.utils.data.Dataset):
                 image_dir = self.root / self._get_image_file_path(ep_idx, key, frame_index=0).parent
                 if os.path.isdir(image_dir):
                     print(f"[DEBUG] 删除图片文件夹: {image_dir}")
-                    os.remove(image_dir)
+                    shutil.rmtree(image_dir)
                     # 验证删除结果
                     if not os.path.exists(image_dir):
                         print(f"[SUCCESS] 成功删除图片文件夹: {image_dir}")
@@ -1219,7 +1218,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
         obj.tolerance_s = tolerance_s
         obj.image_writer = None
         obj.audio_writer = None
-
         if image_writer_processes or image_writer_threads:
             obj.start_image_writer(image_writer_processes, image_writer_threads)
         if len(robot.microphones) > 0:

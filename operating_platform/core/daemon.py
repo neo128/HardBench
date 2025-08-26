@@ -98,6 +98,7 @@ class Daemon:
         start_loop_t = time.perf_counter()
 
         observation, action = self.robot.teleop_step(record_data=True)
+        
         # if observation is not None:
         #     self.observation = observation.copy()
 

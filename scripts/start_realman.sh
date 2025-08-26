@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -e
-# 需要提前进行的操作 git config --global --add safe.directory "$(pwd)"   conda activate op && pip install rerun-sdk 
+# 需要提前进行的操作 git config --global --add safe.directory "$(pwd)"   
 git config --global --add safe.directory "$(pwd)/.."
 source "$(conda info --base)/etc/profile.d/conda.sh"
 # 1. 启动 dora

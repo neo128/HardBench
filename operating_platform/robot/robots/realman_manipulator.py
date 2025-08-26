@@ -107,6 +107,8 @@ def recv_server():
                 gripper_array = np.frombuffer(buffer_bytes, dtype=np.float64)
                 if gripper_array is not None:
                     with lock:
+                        # print(f"Received event_id = {event_id}")
+                        # print(f"Received {event_id}gripper_array = {gripper_array}")
                         recv_gripper[event_id] = gripper_array
             if 'lift_height' in event_id:
                 lift_height = np.frombuffer(buffer_bytes, dtype=np.int64)
@@ -217,7 +219,7 @@ class RM75Arm:
         except Exception as e:
             print(f"ip为{self.ip}的臂夹爪控制异常: {e}")
             return False
-    def set_lift(self, arm_side, value):
+    def set_lift(self, value):
         """控制升降机"""
 
         value = int(value)
@@ -266,6 +268,7 @@ class RealmanManipulator:
     def __init__(self, config: RealmanRobotConfig):
         self.config = config
         self.robot_type = self.config.type
+        self.use_videos = self.config.use_videos
 
         self.follower_arms = {}
         self.leader_arms = {}
@@ -318,7 +321,6 @@ class RealmanManipulator:
     def motor_features(self) -> dict:
         action_names = self.get_motor_names(self.leader_arms)
         state_names = self.get_motor_names(self.leader_arms)
-        print(f"期望的状态名字数量{state_names}")
         return {
             "action": {
                 "dtype": "float64",
@@ -450,20 +452,19 @@ class RealmanManipulator:
                     self.logs[f"read_follower_{name}_pos_dt_s"] = time.perf_counter() - now
 
         follower_gripper = {}
+
         for name in self.follower_arms:
             for match_name in recv_gripper:
+                if name in match_name: 
                     now = time.perf_counter()
-
                     byte_array = np.zeros(1, dtype=np.float64)
                     gripper_read = recv_gripper[match_name]
-
                     byte_array[:1] = gripper_read[:]
                     byte_array = np.round(byte_array, 3)
-                    
                     follower_gripper[name] = torch.from_numpy(byte_array)
+                    # print(f"测试输出为{follower_gripper[name]}")
 
                     self.logs[f"read_follower_{name}_gripper_dt_s"] = time.perf_counter() - now
-
         #记录当前关节角度 为30维:(7+7+1)*2
         state = []
         for name in self.follower_arms:
@@ -522,13 +523,13 @@ class RealmanManipulator:
         to_idx = 7
         index = 0
         pos_num = 7
-        # 0-7
-        # 
+        # left: joint 0-6, pose:7-13, gripper:14
+        # right: joint:15-21, pose:22-28, gripper:29
         action_sent = []
         for name in self.follower_arms:
             if index != 1:
                 goal_pos = action[index*8+from_idx:index*8+to_idx]
-                gripper_pos = action[index*8+from_idx+pos_num]
+                gripper_pos = action[index*8+to_idx+pos_num]
                 goal_pos = torch.cat((goal_pos, torch.tensor([gripper_pos])))
             else:
                 goal_pos = action[index*8+pos_num:index*8+pos_num+to_idx]
@@ -549,9 +550,13 @@ class RealmanManipulator:
             #     # ret_giper = self.pDll.Write_Single_Register(self.nSocket, 1, 40000, int(follower_goal_pos_array[7]), 1, 1)
             #     ret_giper = self.pDll.Write_Single_Register(self.nSocket, 1, 40000, 100, 1, 1)
             #     self.gipflag_send=1
-            
             gripper_value = goal_pos[7]
+
             # 后续添加夹爪控制条件
+            if 'left' in name:
+                print(f"设定左夹爪控制量{gripper_value}")
+            if 'right' in name:
+                print(f"设定右夹爪控制量{gripper_value}")
             self.follower_arms[name].set_gripper(gripper_value)
             self.frame_counter += 1
 

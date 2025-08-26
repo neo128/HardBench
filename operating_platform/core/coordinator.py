@@ -376,7 +376,7 @@ class Coordinator:
 
             replay_dataset_cfg = DatasetReplayConfig(repo_id, ep_index, target_dir, fps=DEFAULT_FPS)
             replay_cfg = ReplayConfig(self.daemon.robot, replay_dataset_cfg)
-
+            
             # 用于线程间通信的异常队列
             error_queue = queue.Queue()
             # 用于通知replay线程停止的事件

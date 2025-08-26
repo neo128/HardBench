@@ -307,6 +307,7 @@ def get_hf_features_from_features(features: dict) -> datasets.Features:
         elif ft["dtype"] == "audio":
             continue
         elif ft["dtype"] == "image":
+            continue
             hf_features[key] = datasets.Image()
         elif ft["shape"] == (1,):
             hf_features[key] = datasets.Value(dtype=ft["dtype"])

@@ -149,7 +149,7 @@ class Record:
 
                 observation = self.daemon.get_observation()
                 action = self.daemon.get_obs_action()
-
+                
                 frame = {**observation, **action, "task": self.record_cfg.single_task}
                 self.dataset.add_frame(frame)
 
