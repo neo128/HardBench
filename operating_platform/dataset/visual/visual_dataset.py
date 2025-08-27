@@ -158,6 +158,7 @@ def visualize_dataset(
 
                 # display each camera image
                 for key in dataset.meta.camera_keys:
+                    continue # 暂时注释因为parquet文件中没有vieo字段了
                     if 'depth' in key:
                         continue
                     # TODO(rcadene): add `.compress()`? is it lossless?

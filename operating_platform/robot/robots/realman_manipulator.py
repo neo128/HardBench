@@ -553,10 +553,6 @@ class RealmanManipulator:
             gripper_value = goal_pos[7]
 
             # 后续添加夹爪控制条件
-            if 'left' in name:
-                print(f"设定左夹爪控制量{gripper_value}")
-            if 'right' in name:
-                print(f"设定右夹爪控制量{gripper_value}")
             self.follower_arms[name].set_gripper(gripper_value)
             self.frame_counter += 1
 
