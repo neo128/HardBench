@@ -45,7 +45,6 @@ class ReplayConfig:
 @draccus.wrap()
 def replay(cfg: ReplayConfig):
     init_logging()
-    print("配置信息为：",cfg)
     # logging.info(pformat(asdict(cfg)))
 
     # robot = make_robot_from_config(cfg.robot)

@@ -60,6 +60,7 @@ local$ rerun ws://localhost:9087
 ```
 
 """
+import webbrowser
 
 import argparse
 import gc
@@ -136,6 +137,7 @@ def visualize_dataset(
 
     if mode not in ["local", "distant"]:
         raise ValueError(mode)
+    logging.basicConfig(level=logging.DEBUG)
 
     spawn_local_viewer = mode == "local" and not save
     rr.init(f"{repo_id}/episode_{episode_index}", spawn=spawn_local_viewer)
@@ -147,8 +149,7 @@ def visualize_dataset(
 
     try:
         if mode == "distant":
-            rr.serve_web(open_browser=True, web_port=web_port)
-
+            rr.serve_web(open_browser=False, web_port=web_port, ws_port=ws_port)
         logging.info("Logging to Rerun")
 
         for batch in tqdm.tqdm(dataloader, total=len(dataloader)):
@@ -156,12 +157,10 @@ def visualize_dataset(
             for i in range(len(batch["index"])):
                 rr.set_time_sequence("frame_index", batch["frame_index"][i].item())
                 rr.set_time_seconds("timestamp", batch["timestamp"][i].item())
-
                 # display each camera image
                 for key in dataset.meta.camera_keys:
-                    continue # 暂时注释因为parquet文件中没有vieo字段了
                     if 'depth' in key:
-                        continue
+                        continue  
                     # TODO(rcadene): add `.compress()`? is it lossless?
                     # rr.log(key, rr.Image(to_hwc_uint8_numpy(batch[key][i])))
                     if len(dataset.meta.video_keys)>0:
@@ -174,25 +173,24 @@ def visualize_dataset(
                             raise FileNotFoundError(f"Image path does not exist: {img_path}")
                         img = cv2.imread(img_path)
                         rr.log(key, rr.Image(img))
-
                 # display each dimension of action space (e.g. actuators command)
                 if "action" in batch:
                     for dim_idx, val in enumerate(batch["action"][i]):
-                        rr.log(f"action/{dim_idx}", rr.Scalars(val.item()))
+                        rr.log(f"action/{dim_idx}", rr.Scalar(val.item()))
 
                 # display each dimension of observed state space (e.g. agent position in joint space)
                 if "observation.state" in batch:
                     for dim_idx, val in enumerate(batch["observation.state"][i]):
-                        rr.log(f"state/{dim_idx}", rr.Scalars(val.item()))
+                        rr.log(f"state/{dim_idx}", rr.Scalar(val.item()))
 
                 if "next.done" in batch:
-                    rr.log("next.done", rr.Scalars(batch["next.done"][i].item()))
+                    rr.log("next.done", rr.Scalar(batch["next.done"][i].item()))
 
                 if "next.reward" in batch:
-                    rr.log("next.reward", rr.Scalars(batch["next.reward"][i].item()))
+                    rr.log("next.reward", rr.Scalar(batch["next.reward"][i].item()))
 
                 if "next.success" in batch:
-                    rr.log("next.success", rr.Scalars(batch["next.success"][i].item()))
+                    rr.log("next.success", rr.Scalar(batch["next.success"][i].item()))
 
         if mode == "local" and save:
             # save .rrd locally
@@ -221,6 +219,8 @@ def visualize_dataset(
     finally:
         rr.disconnect()
 
+
+    
 
 def main():
     parser = argparse.ArgumentParser()
