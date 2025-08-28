@@ -21,8 +21,10 @@ docker run -it \
   -e DISPLAY=$DISPLAY \
   -e XDG_RUNTIME_DIR=/tmp \
   -e DOROBOT_HOME=/root/DoRobot \
+  -e LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/nvidia:$LD_LIBRARY_PATH \
+  -v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra \
+  -v /usr/lib/aarch64-linux-gnu/nvidia:/usr/lib/aarch64-linux-gnu/nvidia \
   operating_platform:latest
-
 # 3. 检查容器是否运行
 if [ "$(docker inspect -f '{{.State.Running}}' operating_platform 2>/dev/null)" == "true" ]; then
   echo "容器已成功运行。"

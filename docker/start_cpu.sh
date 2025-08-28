@@ -8,12 +8,14 @@ echo "清理旧容器（如果存在）..."
 docker stop operating_platform 2>/dev/null || true
 docker rm operating_platform 2>/dev/null || true
 
+
+
 # 2. 创建并启动新容器，挂载当前目录到容器的 /app 目录
 echo "正在创建并启动容器，并挂载当前目录..."
 docker run -it \
   --name operating_platform \
   --privileged \
-  --network host \
+  --network host\
   --shm-size=8g \
   -v "$(pwd)":/Operating-Platform \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
@@ -22,7 +24,7 @@ docker run -it \
   -e http_proxy=http://127.0.0.1:7897 \
   -e https_proxy=http://127.0.0.1:7897 \
   -e DOROBOT_HOME=/root/DoRobot \
-  operating-platform:V1.6_ubuntu20
+  operating-platform:V1.9_ubuntu20
 
 # 3. 检查容器是否运行
 if [ "$(docker inspect -f '{{.State.Running}}' operating_platform 2>/dev/null)" == "true" ]; then

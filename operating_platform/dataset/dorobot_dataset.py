@@ -134,6 +134,11 @@ class DoRobotDatasetMetadata:
         ep_chunk = self.get_episode_chunk(ep_index)
         fpath = self.data_path.format(episode_chunk=ep_chunk, episode_index=ep_index)
         return Path(fpath)
+    
+    def get_image_file_path(self, ep_index: int, img_key: str, frame_index) -> Path:
+        # ep_chunk = self.get_episode_chunk(ep_index)
+        fpath = self.image_path.format(image_key=img_key, episode_index=ep_index, frame_index=frame_index)
+        return Path(fpath)
 
     def get_video_file_path(self, ep_index: int, vid_key: str) -> Path:
         ep_chunk = self.get_episode_chunk(ep_index)
@@ -157,6 +162,11 @@ class DoRobotDatasetMetadata:
     def video_path(self) -> str | None:
         """Formattable string for the video files."""
         return self.info["video_path"]
+    
+    @property
+    def image_path(self) -> str | None:
+        """Formattable string for the audio files."""
+        return self.info["image_path"]
     
     @property
     def audio_path(self) -> str | None:

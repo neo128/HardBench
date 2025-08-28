@@ -307,8 +307,8 @@ def get_hf_features_from_features(features: dict) -> datasets.Features:
         elif ft["dtype"] == "audio":
             continue
         elif ft["dtype"] == "image":
+            # hf_features[key] = datasets.Image()
             continue
-            hf_features[key] = datasets.Image()
         elif ft["shape"] == (1,):
             hf_features[key] = datasets.Value(dtype=ft["dtype"])
         elif len(ft["shape"]) == 1:
@@ -392,6 +392,7 @@ def create_empty_dataset_info(
         "fps": fps,
         "splits": {},
         "data_path": DEFAULT_PARQUET_PATH,
+        "image_path": DEFAULT_IMAGE_PATH if use_videos == False else None,
         "video_path": DEFAULT_VIDEO_PATH if use_videos else None,
         "audio_path": DEFAULT_AUDIO_PATH if use_audios else None,
         "features": features,

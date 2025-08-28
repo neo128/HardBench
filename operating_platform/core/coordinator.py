@@ -8,6 +8,7 @@ import requests
 import traceback
 import threading
 import queue
+import tempfile
 
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -22,24 +23,23 @@ import subprocess
 from operating_platform.robot.robots.configs import RobotConfig
 from operating_platform.robot.robots.utils import make_robot_from_config, Robot, busy_wait, safe_disconnect
 from operating_platform.utils import parser
-from operating_platform.utils.utils import has_method, init_logging, log_say, get_current_git_branch, git_branch_log
+from operating_platform.utils.utils import has_method, init_logging, log_say, get_current_git_branch, git_branch_log, get_container_ip_from_hosts
 from operating_platform.utils.data_file import find_epindex_from_dataid_json
 
 from operating_platform.utils.data_file import check_disk_space
 from operating_platform.utils.constants import DOROBOT_DATASET
 from operating_platform.dataset.dorobot_dataset import *
 from operating_platform.dataset.visual.visual_dataset import visualize_dataset
-
+from operating_platform.dataset.visual.visualize_dataset_html import visualize_dataset_html
 # from operating_platform.core._client import Coordinator
 from operating_platform.core.daemon import Daemon
 from operating_platform.core.record import Record, RecordConfig
 from operating_platform.core.replay import DatasetReplayConfig, ReplayConfig, replay
 
 import asyncio, aiohttp
-
-RERUN_WEB_PORT = 9095
-RERUN_WS_PORT = 9185
-DEFAULT_FPS = 25
+DEFAULT_FPS = 30
+RERUN_WEB_PORT = 9195
+RERUN_WS_PORT = 9285
 
 @cache
 def is_headless():
@@ -361,17 +361,9 @@ class Coordinator:
                 target_dir = dataset_path / date_str / "dev" / repo_id
 
             ep_index = find_epindex_from_dataid_json(target_dir, task_data_id)
-
-            dataset = DoRobotDataset(repo_id, root=target_dir, episodes=[ep_index])
-
-            # 发送响应
-
-            response_data = {
-                "data": {
-                    "url": f"http://localhost:{RERUN_WEB_PORT}/?url=ws://localhost:{RERUN_WS_PORT}",
-                },
-            }
-            await self.send_response('start_replay', "success", response_data)
+            
+            dataset = DoRobotDataset(repo_id, root=target_dir)
+       
             print(f"开始回放数据集: {repo_id}, 目标目录: {target_dir}, 任务数据ID: {task_data_id}, 回放索引: {ep_index}")
 
             replay_dataset_cfg = DatasetReplayConfig(repo_id, ep_index, target_dir, fps=DEFAULT_FPS)
@@ -388,15 +380,14 @@ class Coordinator:
                     # 主线程执行可视化（阻塞直到窗口关闭或超时）
                     visualize_dataset(
                         dataset,
-                        mode="distant",
-                        episode_index=0,
+                        mode="local",
+                        episode_index=ep_index,
                         web_port=RERUN_WEB_PORT,
                         ws_port=RERUN_WS_PORT,
                         stop_event=stop_event  # 需要replay函数支持stop_event参数
                     )
                 except Exception as e:
                     error_queue.put(e)
-
             # 创建并启动replay线程
             visual_thread = threading.Thread(
                 target=visual_worker,
@@ -404,6 +395,14 @@ class Coordinator:
                 daemon=True  # 设置为守护线程，主程序退出时自动终止
             )
             visual_thread.start()
+
+            # 发送响应
+            response_data = {
+                "data": {
+                    "url": f"http://localhost:{RERUN_WEB_PORT}/?url=ws://localhost:{RERUN_WS_PORT}",
+                },
+            }
+            await self.send_response('start_replay', "success", response_data)
 
             try:
                 replay(replay_cfg)
@@ -425,7 +424,10 @@ class Coordinator:
                 except queue.Empty:
                     pass
             self.replaying = False
-
+            print("="*20)
+            print("Replay Complete Success!")
+            print("="*20)
+    
 ####################### Client Send to Server ############################
     async def send_heartbeat_loop(self):
         """定期发送心跳"""
