@@ -474,7 +474,7 @@ class PikaV1RobotConfig(RobotConfig):
 
 @RobotConfig.register_subclass("so101")
 @dataclass
-class So101RobotConfig(ManipulatorRobotConfig):
+class SO101RobotConfig(ManipulatorRobotConfig):
     calibration_dir: str = ".cache/calibration/so101"
     # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
     # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as

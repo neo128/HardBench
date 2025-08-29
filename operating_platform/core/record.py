@@ -103,15 +103,19 @@ class RecordConfig():
 
 
 class Record:
-    def __init__(self, fps: int, robot: Robot, daemon: Daemon, record_cfg: RecordConfig, record_cmd):
+    def __init__(self, fps: int, robot: Robot, daemon: Daemon, record_cfg: RecordConfig, record_cmd: dict):
         self.robot = robot
         self.daemon = daemon
         self.record_cfg = record_cfg
         self.fps = fps
-        self.record_cmd = record_cfg.record_cmd
+        self.record_cmd = record_cmd
         self.last_record_episode_index = 0
         self.record_complete = False
         self.save_data = None
+
+        self.record_cfg.record_cmd = record_cmd
+
+        print(f"in Record init record_cmd: {self.record_cmd}")
 
         if self.record_cfg.resume:
             self.dataset = DoRobotDataset(
@@ -182,6 +186,8 @@ class Record:
 
         print("save_episode succcess, episode_index:", episode_index)
 
+        print(f"in Record stop record_cmd: {self.record_cmd}")
+
         update_dataid_json(self.record_cfg.root, episode_index,  self.record_cmd)
         if episode_index == 0 and self.dataset.meta.total_episodes == 1:
             update_common_record_json(self.record_cfg.root, self.record_cmd)
@@ -196,8 +202,10 @@ class Record:
 
         print("get_data_size succcess, file_size:", file_size)
 
-        validate_result = validate_session(self.record_cfg.root / "meta", "episode_{episode_index:06d}".format(episode_index = episode_index))
+        validate_result = validate_session(self.record_cfg.root, "episode_{episode_index:06d}".format(episode_index = episode_index))
         print(f"Data validate complete, result:{validate_result}")
+
+        verification = validate_result["verification"]
 
         data = {
             "file_message": {
@@ -207,12 +215,12 @@ class Record:
                 "file_duration": str(file_duration),
             },
             "verification": {
-                "file_integrity": validate_result["file_integrity"],
-                "camera_frame_rate": validate_result["camera_frame_rate"],
-                "action_frame_rate": validate_result["action_frame_rate"],
-                "file_integrity_comment": validate_result["file_integrity_comment"],
-                "camera_frame_rate_comment": validate_result["camera_frame_rate_comment"],
-                "action_frame_rate_comment": validate_result["action_frame_rate_comment"],
+                "file_integrity": verification["file_integrity"],
+                "camera_frame_rate": verification["camera_frame_rate"],
+                "action_frame_rate": verification["action_frame_rate"],
+                "file_integrity_comment": verification["file_integrity_comment"],
+                "camera_frame_rate_comment": verification["camera_frame_rate_comment"],
+                "action_frame_rate_comment": verification["action_frame_rate_comment"],
             }
         }
 
