@@ -19,7 +19,8 @@ from operating_platform.utils.data_file import (
     get_data_size ,
     update_dataid_json,
     update_common_record_json,
-    delete_dataid_json
+    delete_dataid_json,
+    validate_session,
 )
 
 
@@ -195,6 +196,9 @@ class Record:
 
         print("get_data_size succcess, file_size:", file_size)
 
+        validate_result = validate_session(self.record_cfg.root / "meta", "episode_{episode_index:06d}".format(episode_index = episode_index))
+        print(f"Data validate complete, result:{validate_result}")
+
         data = {
             "file_message": {
                 "file_name": self.record_cfg.repo_id,
@@ -203,8 +207,12 @@ class Record:
                 "file_duration": str(file_duration),
             },
             "verification": {
-                "file_integrity": "pass",
-                "camera_frame_rate": "pass",
+                "file_integrity": validate_result["file_integrity"],
+                "camera_frame_rate": validate_result["camera_frame_rate"],
+                "action_frame_rate": validate_result["action_frame_rate"],
+                "file_integrity_comment": validate_result["file_integrity_comment"],
+                "camera_frame_rate_comment": validate_result["camera_frame_rate_comment"],
+                "action_frame_rate_comment": validate_result["action_frame_rate_comment"],
             }
         }
 

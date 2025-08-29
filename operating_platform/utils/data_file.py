@@ -2,6 +2,313 @@ import os
 import datetime
 import json
 
+import numpy as np
+import pandas as pd
+from pathlib import Path
+import cv2
+
+
+def calculate_thresholds_fps(meta_dir, episodes_stats, info_json, episode_id, threshold_percentage=0.1):
+    """计算动作突变阈值和FPS"""
+    # 读取JSON文件（逐行查找指定episode_id）
+    target_json = None
+    with open(meta_dir / episodes_stats, 'r') as file:
+        for line in file:
+            try:
+                json_object = json.loads(line.strip())
+                if json_object["episode_index"] == episode_id:
+                    target_json = json_object
+                    break
+            except json.JSONDecodeError as e:
+                print(f"解析 JSON 失败，行内容: {line.strip()}, 错误信息: {e}")
+                continue
+
+    if target_json is None:
+        raise ValueError(f"未找到 episode_id = {episode_id} 的数据！")
+
+    # 提取 max 和 min，并计算范围
+    max_vals = np.array(target_json['stats']['action']['max'], dtype=np.float32)
+    min_vals = np.array(target_json['stats']['action']['min'], dtype=np.float32)
+    
+    # 检查维度一致性
+    if len(max_vals) != len(min_vals):
+        raise ValueError(f"max 和 min 的维度不一致！max: {len(max_vals)}, min: {len(min_vals)}")
+
+    # 计算阈值
+    action_range = max_vals - min_vals
+    joint_change_thresholds = np.abs(action_range) * threshold_percentage
+    joint_change_thresholds = np.where(
+        joint_change_thresholds == 0,
+        1e-9,
+        joint_change_thresholds
+    )
+
+    # 读取FPS
+    fps = None
+    try:
+        with open(meta_dir / info_json, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            fps = data.get("fps")
+            print(f"[DEBUG] 读取到FPS值: {fps}")
+    except Exception as e:
+        print(f"[ERROR] 读取info.json失败: {str(e)}")
+    
+    return joint_change_thresholds, fps
+
+
+def validate_timestamps(df, fps):
+    """校验时间戳是否符合固定帧率"""
+    timestamps = df['timestamp'].values.astype(np.float64)
+    
+    # 检查单调性
+    if not np.all(np.diff(timestamps) >= 0):
+        return False, '检测到动作时间戳不单调递增'
+    
+    # 检查固定帧率
+    expected_interval = 1.0 / fps
+    actual_intervals = np.diff(timestamps)
+    tolerance = 0.01  # 1% 容差
+    relative_error = np.abs(actual_intervals - expected_interval) / expected_interval
+    
+    if np.any(relative_error > tolerance):
+        bad_idx = np.where(relative_error > tolerance)[0][0]
+        error_msg = (
+            f"帧 {bad_idx} 的时间戳间隔不符合预期帧率 {fps} FPS。\n"
+            f"预期间隔: {expected_interval:.6f} 秒，\n"
+            f"实际间隔: {actual_intervals[bad_idx]:.6f} 秒"
+        )
+        return False, error_msg
+    
+    return True, None
+
+
+def validate_action_data(df, joint_change_thresholds):
+    """校验动作数据质量"""
+    if 'action' not in df.columns:
+        return False, "Parquet文件中缺少'action'列"
+    
+    action_data = np.stack(df['action'].values)
+    print(f"动作数据形状: {action_data.shape}")
+
+    # 检查全零帧
+    zero_frames = np.where(np.all(action_data == 0, axis=1))[0]
+    if len(zero_frames) > 0:
+        error_msg = f"检测到 {len(zero_frames)} 帧全零数据（无效动作），位于索引: {list(zero_frames)}"
+        return False, error_msg
+
+    # 检查相邻帧突变
+    diff = np.abs(action_data[1:]) - np.abs(action_data[:-1])
+    violations = diff > joint_change_thresholds
+    n_violations_per_frame = np.sum(violations, axis=1)
+    
+    if np.any(n_violations_per_frame > 0):
+        first_violation_frame = np.where(n_violations_per_frame > 0)[0][0] + 1
+        problematic_frame_idx = first_violation_frame
+        exceeding_dims = np.where(violations[problematic_frame_idx - 1])[0]
+        error_msg = f"检测到 {problematic_frame_idx} 帧发生突变（无效动作），位于索引: {exceeding_dims}"
+        return False, error_msg
+
+    # 检查重复动作
+    unique_actions, counts = np.unique(action_data, axis=0, return_counts=True)
+    duplicate_ratio = 1 - (len(unique_actions) / len(action_data))
+    most_common_action = unique_actions[np.argmax(counts)]
+    max_count = max(counts)
+    most_common_ratio = max_count / len(action_data)
+    
+    if most_common_ratio > 0.9:
+        error_msg = f"检测到{most_common_ratio:.3%}帧动作重复"
+        return False, error_msg
+    msg = f"检测到{most_common_ratio:.3%}帧动作重复"
+    return True, msg
+
+
+def compare_images(img1, img2):
+    """比较两张图像的相似度"""
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    
+    hist1 = cv2.calcHist([gray1], [0], None, [256], [0, 256])
+    hist2 = cv2.calcHist([gray2], [0], None, [256], [0, 256])
+    
+    similarity = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+    return similarity
+
+
+def validate_image_data(img_files, camera_name, image_sample_interval=30, image_change_threshold=0.98):
+    """校验图像数据"""
+    if not img_files:
+        return False, f"检测到{camera_name}没有图像数据"
+
+    # 抽样检查
+    sample_indices = list(range(0, len(img_files), image_sample_interval))
+    if len(img_files) - 1 not in sample_indices:
+        sample_indices.append(len(img_files) - 1)
+
+    similar_pairs = []
+    for i in range(len(sample_indices) - 1):
+        idx1 = sample_indices[i]
+        idx2 = sample_indices[i + 1]
+        img1 = cv2.imread(str(img_files[idx1]))
+        img2 = cv2.imread(str(img_files[idx2]))
+
+        if img1 is None or img2 is None:
+            return False, f"无法读取{camera_name}图像数据"
+    
+        similarity = compare_images(img1, img2)
+        if similarity > image_change_threshold:
+            similar_pairs.append((idx1, idx2, similarity))
+
+    # 分析结果
+    if len(similar_pairs) > len(sample_indices) * 0.5:
+        first_img = cv2.imread(str(img_files[0]))
+        all_same = True
+        for img_file in img_files[1:]:
+            img = cv2.imread(str(img_file))
+            if not np.array_equal(first_img, img):
+                all_same = False
+                break
+        if all_same:
+            return False, f"检测到{camera_name}部分图像数据完全相同"
+    
+    # 检查首尾图像
+    first_img = cv2.imread(str(img_files[0]))
+    last_img = cv2.imread(str(img_files[-1]))
+    end_similarity = compare_images(first_img, last_img)
+    
+    if end_similarity >= 1:
+        return False, f"检测到{camera_name}首尾图像完全相同"
+    
+    if end_similarity > image_change_threshold:
+        print(
+            f"注意: 首尾图像非常相似 (相似度={end_similarity:.4f})。 "
+            "请确认会话是否捕获了预期的动作。"
+        )
+    
+    return True, None
+
+
+def validate_frame_count(df, img_files):
+    """校验动作数据和图像帧数是否一致"""
+    if len(df) != len(img_files):
+        return False, (
+            f"帧数不匹配: 动作数据 {len(df)} 帧 vs "
+            f"图像数据 {len(img_files)} 帧"
+        )
+    return True, None
+
+
+def validate_session(dir, session_id, 
+                    episodes_stats="episodes_stats.jsonl", 
+                    info_json="info.json",
+                    image_sample_interval=30,
+                    image_change_threshold=0.98,
+                    threshold_percentage=0.1):
+    """验证单个会话的数据，返回结构化验证结果"""
+    print(f"正在验证会话: {session_id}")
+    
+    # 初始化返回结构
+    verification_result = {
+        "camera_frame_rate": "pass",
+        "camera_frame_rate_comment": "",
+        "action_frame_rate": "pass",
+        "action_frame_rate_comment": "",
+        "file_integrity": "pass",
+        "file_integrity_comment": ""
+    }
+    
+    data_dir = Path(os.path.join(dir,"data"))
+    images_dir = Path(os.path.join(dir,"images"))
+    meta_dir = Path(os.path.join(dir,"meta"))
+    
+    # 解析episode_id
+    try:
+        episode_id = int(session_id.split("_")[1])
+    except (IndexError, ValueError):
+        verification_result["file_integrity"] = "no pass"
+        verification_result["file_integrity_comment"] = f"无效的会话ID格式: {session_id}"
+        return {"verification": verification_result}
+ 
+    # 计算阈值和FPS
+    try:
+        joint_change_thresholds, fps = calculate_thresholds_fps(
+            meta_dir, episodes_stats, info_json, episode_id, threshold_percentage
+        )
+        if fps is None:
+            fps = 30  # 默认值
+    except Exception as e:
+        verification_result["file_integrity"] = "no pass"
+        verification_result["file_integrity_comment"] = str(e)
+        return {"verification": verification_result}
+ 
+    # 1. 加载数据
+    parquet_path = data_dir / "chunk-000" / f"{session_id}.parquet"
+    img_session_dir = images_dir
+    
+    if not parquet_path.exists():
+        verification_result["file_integrity"] = "no pass"
+        verification_result["file_integrity_comment"] = f"检测不到Parquet文件: {parquet_path}"
+        return {"verification": verification_result}
+    
+    if not img_session_dir.exists():
+        verification_result["file_integrity"] = "no pass"
+        verification_result["file_integrity_comment"] = f"检测不到图像目录: {img_session_dir}"
+        return {"verification": verification_result}
+    
+    try:
+        df = pd.read_parquet(parquet_path)
+    except Exception as e:
+        verification_result["file_integrity"] = "no pass"
+        verification_result["file_integrity_comment"] = f"读取Parquet文件失败: {str(e)}"
+        return {"verification": verification_result}
+ 
+    # 验证动作时间戳（帧率）
+    valid, msg = validate_timestamps(df, fps)
+    if not valid:
+        verification_result["file_integrity"] = "no pass"
+        verification_result["file_integrity_comment"] = msg
+    
+    
+    # 验证动作数据质量
+    valid, msg = validate_action_data(df, joint_change_thresholds)
+    if not valid:
+        verification_result["action_frame_rate"] = "no pass"
+        verification_result["action_frame_rate_comment"] = msg
+       
+    else:
+        verification_result["action_frame_rate_comment"] = msg
+    # 检查相机目录
+    camera_dirs = [d for d in img_session_dir.glob("*") if d.is_dir()]
+    if not camera_dirs:
+        verification_result["camera_frame_rate"] = "no pass"
+        verification_result["camera_frame_rate_comment"] = f"未找到相机目录: {img_session_dir}"
+        return {"verification": verification_result}
+    
+    # 验证每个相机的数据
+    for camera_dir in camera_dirs:
+        camera_name = os.path.basename(camera_dir)
+        camera_dir = camera_dir / session_id
+        img_files = sorted(camera_dir.glob("frame_*.png"),
+                         key=lambda x: int(x.stem.split("_")[-1]))
+        if not img_files:
+            img_files = sorted(camera_dir.glob("frame_*.jpg"),
+                         key=lambda x: int(x.stem.split("_")[-1]))
+        
+        # 验证帧数一致性
+        valid, msg = validate_frame_count(df, img_files)
+        if not valid:
+            verification_result["file_integrity"] = "no pass"
+            verification_result["file_integrity_comment"] = msg
+        
+        # 验证图像数据
+        valid, msg = validate_image_data(
+            img_files, camera_name, image_sample_interval, image_change_threshold
+        )
+        if not valid:
+            verification_result["camera_frame_rate"] = "no pass"
+            verification_result["camera_frame_rate_comment"] = msg
+    
+    print(f"✅ 会话 {session_id} 验证完成")
+    return {"verification": verification_result}
 
 def get_today_date():
     # 获取当前日期和时间
