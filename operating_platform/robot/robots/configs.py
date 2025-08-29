@@ -360,12 +360,12 @@ class RealmanRobotConfig(RobotConfig):
 
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {
-            # "image_top": OpenCVCameraConfig(
-            #     camera_index=2,
-            #     fps=25,
-            #     width=640,
-            #     height=480,
-            # ),
+            "image_top": OpenCVCameraConfig(
+                camera_index=20,
+                fps=25,
+                width=640,
+                height=480,
+            ),
             "image_right": OpenCVCameraConfig(
                 camera_index=4,
                 fps=25,
@@ -378,12 +378,12 @@ class RealmanRobotConfig(RobotConfig):
                 width=640,
                 height=480,
             ),
-            # "image_depth_top": OpenCVCameraConfig(
-            #     camera_index=2,
-            #     fps=25,
-            #     width=640,
-            #     height=480,
-            # ),
+            "image_depth_top": OpenCVCameraConfig(
+                camera_index=20,
+                fps=25,
+                width=640,
+                height=480,
+            ),
             "image_depth_right": OpenCVCameraConfig(
                 camera_index=4,
                 fps=25,
