@@ -2,7 +2,7 @@
 
 # 配置参数
 CONTAINER_NAME="operating_platform"
-PROJECT_DIR="/root/Operating-Platform"
+PROJECT_DIR="/root/WanX-EI-Studio"
 CONDA_ENV1="op-robot-aloha"
 CONDA_ENV2="op"
 CONDA_ENV3="dr-view-rerun"
