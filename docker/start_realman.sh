@@ -14,6 +14,7 @@ docker run -it \
   --name operating_platform \
   --privileged \
   --network host \
+  -v /usr/bin/tegrastats:/usr/bin/tegrastats \
   -v "$(pwd)":/root/Operating-Platform \
   -v "/home/rm/DoRobot":/root/DoRobot \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
@@ -24,6 +25,8 @@ docker run -it \
   -e LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/nvidia:$LD_LIBRARY_PATH \
   -v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra \
   -v /usr/lib/aarch64-linux-gnu/nvidia:/usr/lib/aarch64-linux-gnu/nvidia \
+  --runtime=nvidia \
+  --gpus all \
   operating_platform:latest
 # 3. 检查容器是否运行
 if [ "$(docker inspect -f '{{.State.Running}}' operating_platform 2>/dev/null)" == "true" ]; then

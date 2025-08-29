@@ -19,7 +19,6 @@ import cv2
 
 import zmq
 
-
 from operating_platform.robot.robots.utils import RobotDeviceNotConnectedError
 from operating_platform.robot.robots.configs import RealmanRobotConfig
 from operating_platform.robot.robots.com_configs.cameras import CameraConfig, OpenCVCameraConfig

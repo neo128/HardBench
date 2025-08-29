@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -e
-# 需要提前进行的操作 git config --global --add safe.directory "$(pwd)"   
+# 优先选择NVIDIA硬件GPU（对Rerun渲染至关重要）
+export VK_DEVICE_SELECTOR="vendorId=0x10de"
 source "$(conda info --base)/etc/profile.d/conda.sh"
 # 1. 启动 dora
 cd ../operating_platform/robot/robots/realman_v1
