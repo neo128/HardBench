@@ -251,7 +251,6 @@ class NASAuthenticator:
             if data.get("success"):
                 # 检查响应中的 data 字段是否包含文件信息
                 file_info = data.get("data", {}).get("files")
-                print(file_info)
                 if 'code' in file_info[0]:
                     if file_info[0]['code'] != 200:
                         return False
@@ -340,7 +339,7 @@ class NASAuthenticator:
                         if chunk:
                             f.write(chunk)
 
-                print(f"文件下载成功: {local_path}")
+               
                 return True
 
         except RequestException as e:
@@ -429,14 +428,12 @@ class NASAuthenticator:
                 f"{self.server_url}/api/upload_start",
                 json = task_msg
             )
-            print("发送上传开始:", response.json())
         except Exception as e:
             print(f"发送上传开始失败: {e}")
         j = 0
         for i in range(file_number):
             if not os.path.exists(local_file_list[i]):
                 j += 1
-                print(local_file_list[i])
                 try:
                     task_msg['expand'] = '{"nas_failed_msg":"文件路径不存在"}' 
                     response = self.session.post(
@@ -487,7 +484,6 @@ class NASAuthenticator:
                             headers=headers,
                             timeout=600
                         )
-                        print(resp.json())
                         if resp.json().get("success"):
                             break
                         else:
@@ -581,7 +577,6 @@ class NASAuthenticator:
                     headers=headers,
                     timeout=600
                 )
-                print(resp.json())
                 return resp.json().get("success"), file_size
         except Exception as e:
             print(f"\n上传出错，达到最大重试次数: {str(e)}")
