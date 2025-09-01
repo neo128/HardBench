@@ -75,7 +75,7 @@ class RecordConfig():
     fps: int = 30
 
     # Encode frames in the dataset into video
-    video: bool = True
+    video: bool = False # 这是实际控制use_videos的地方
 
     # Upload dataset to Hugging Face hub.
     push_to_hub: bool = False
@@ -160,7 +160,7 @@ class Record:
 
                 observation = self.daemon.get_observation()
                 action = self.daemon.get_obs_action()
-
+                
                 frame = {**observation, **action, "task": self.record_cfg.single_task}
                 self.dataset.add_frame(frame)
 

@@ -1,0 +1,100 @@
+nodes:
+  - id: camera_top
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/40
+      hw_tick: monitor/get_hw_info_single
+    outputs:
+      - image
+      - image_depth
+      - hw_single
+    env:
+      DEVICE_SERIAL: 150622072280 
+
+  - id: camera_right
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/40
+      hw_tick: monitor/get_hw_info_single
+    outputs:
+      - image
+      - image_depth
+      - hw_single
+    env:
+      DEVICE_SERIAL: 152222072189
+
+  - id: camera_left
+    path: ../../components/camera_rgbd_realsense/main.py
+    inputs:
+      tick: dora/timer/millis/40
+      hw_tick: monitor/get_hw_info_single
+    outputs:
+      - image
+      - image_depth
+      - hw_single
+    env:
+      DEVICE_SERIAL: 216322070529
+
+  - id: arm_right
+    path: ../../components/arm_normal_realman_v2/main.py
+    inputs:
+      tick: dora/timer/millis/40
+      hw_tick: monitor/get_hw_info_single
+    outputs:
+      - jointstate
+      - gripper
+      - pose
+      - hw_single
+    env:
+      ARM_IP: 169.254.128.19
+      ARM_ID: arm_right
+      ARM_PORT: 8080
+
+  - id: arm_left
+    path: ../../components/arm_normal_realman_v2/main.py
+    inputs:
+      tick: dora/timer/millis/40
+      hw_tick: monitor/get_hw_info_single
+    outputs:
+      - jointstate
+      - gripper
+      - pose
+      - lift_height #因为左臂ip较小，升降机高度统一由左臂获取
+      - hw_single
+    env:
+      ARM_IP: 169.254.128.18
+      ARM_ID: arm_left
+      ARM_PORT: 8080
+      
+  - id: monitor
+    path: ../monitor.py
+    inputs:
+      tick: dora/timer/secs/60
+      hw_camera_top_single: camera_top/hw_single
+      hw_camera_left_single: camera_left/hw_single
+      hw_camera_right_single: camera_right/hw_single
+      hw_arm_left_single: arm_left/hw_single
+      hw_arm_right_single: arm_left/hw_single
+    outputs:
+      - get_hw_info_single
+      - hw_info
+      
+  - id: zeromq
+    path: ../dora_zeromq.py
+    inputs: 
+      image_top: camera_top/image
+      image_depth_top: camera_top/image_depth
+      image_right: camera_right/image
+      image_depth_right: camera_right/image_depth
+      image_left: camera_left/image
+      image_depth_left: camera_left/image_depth
+      jointstate_left: arm_left/jointstate
+      jointstate_right: arm_right/jointstate
+      gripper_left: arm_left/gripper
+      gripper_right: arm_right/gripper
+      pose_left: arm_left/pose
+      pose_right: arm_right/pose
+      lift_height: arm_left/lift_height
+      hw_info: monitor/hw_info
+
+

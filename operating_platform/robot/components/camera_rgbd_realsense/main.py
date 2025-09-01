@@ -10,8 +10,14 @@ import pyrealsense2 as rs
 from dora import Node
 
 RUNNER_CI = True if os.getenv("CI") == "true" else False
-
-
+# ---------- 新增 ----------
+def camera_is_online(serial: str) -> bool:
+    """枚举判断指定 serial 的相机是否插在 USB 上"""
+    for d in rs.context().query_devices():
+        if d.get_info(rs.camera_info.serial_number) == serial:
+            return True
+    return False
+# --------------------------
 def main():
     """TODO: Add docstring."""
     flip = os.getenv("FLIP", "")
@@ -36,7 +42,7 @@ def main():
     config = rs.config()
     config.enable_device(device_serial)
     config.enable_stream(rs.stream.color, image_width, image_height, rs.format.rgb8, 30)
-    # config.enable_stream(rs.stream.depth, image_width, image_height, rs.format.z16, 30)
+    config.enable_stream(rs.stream.depth, image_width, image_height, rs.format.z16, 30)
 
     align_to = rs.stream.color
     align = rs.align(align_to)
@@ -44,10 +50,16 @@ def main():
     profile = pipeline.start(config)
 
     rgb_profile = profile.get_stream(rs.stream.color)
-    # depth_profile = profile.get_stream(rs.stream.depth)
-    # _depth_intr = depth_profile.as_video_stream_profile().get_intrinsics()
+    depth_profile = profile.get_stream(rs.stream.depth)
+    _depth_intr = depth_profile.as_video_stream_profile().get_intrinsics()
     rgb_intr = rgb_profile.as_video_stream_profile().get_intrinsics()
     node = Node()
+    # ---------- 新增 ----------
+    last_frame_ts = time.time()          # 最近一次拿到帧的时间
+    STATUS_OK      = b"True"
+    STATUS_OFFLINE = b"False"
+    STATUS_NOFRAME = b"False"
+    # --------------------------
     start_time = time.time()
 
     pa.array([])  # initialize pyarrow array
@@ -65,18 +77,13 @@ def main():
             if event_id == "tick":
                 frames = pipeline.wait_for_frames()
                 aligned_frames = align.process(frames)
-
-                # aligned_depth_frame = aligned_frames.get_depth_frame()
-                # color_frame = aligned_frames.get_color_frame()
-                # if not aligned_depth_frame or not color_frame:
-                #     continue
-                
+                aligned_depth_frame = aligned_frames.get_depth_frame()
                 color_frame = aligned_frames.get_color_frame()
-                if not color_frame:
+                if not aligned_depth_frame or not color_frame:
                     continue
 
-                # depth_image = np.asanyarray(aligned_depth_frame.get_data())
-                # scaled_depth_image = depth_image
+                depth_image = np.asanyarray(aligned_depth_frame.get_data())
+                scaled_depth_image = depth_image
                 frame = np.asanyarray(color_frame.get_data())
 
                 ## Change rgb to bgr
@@ -103,26 +110,33 @@ def main():
                         continue
 
                 storage = pa.array(frame.ravel())
+                # 更新“有帧”时间戳
+                last_frame_ts = time.time()
 
                 metadata["resolution"] = [int(rgb_intr.ppx), int(rgb_intr.ppy)]
                 metadata["focal_length"] = [int(rgb_intr.fx), int(rgb_intr.fy)]
                 # metadata["principal_point"] = [int(rgb_intr.ppx), int(rgb_intr.ppy)]
                 metadata["timestamp"] = time.time_ns()
                 node.send_output("image", storage, metadata)
-                # metadata["encoding"] = "mono16"
-                # scaled_depth_image[scaled_depth_image > 5000] = 0
-                # node.send_output(
-                #     "depth",
-                #     pa.array(scaled_depth_image.ravel()),
-                #     metadata,
-                # )
-
+                metadata["encoding"] = "mono16"
+                scaled_depth_image[scaled_depth_image > 5000] = 0
+                node.send_output(
+                    "image_depth",
+                    pa.array(scaled_depth_image.ravel()),
+                    metadata,
+                )
+            if event_id == "hw_tick":
+                # ---------- 心跳 ----------
+                if not camera_is_online(device_serial):
+                    status = STATUS_OFFLINE
+                elif time.time() - last_frame_ts > 2.0:
+                    status = STATUS_NOFRAME
+                else:
+                    status = STATUS_OK
+                node.send_output("hw_single", status)
+                # --------------------------
         elif event_type == "ERROR":
             raise RuntimeError(event["error"])
-        
-        if event_type == "STOP":
-            break
-
 
 if __name__ == "__main__":
     main()
