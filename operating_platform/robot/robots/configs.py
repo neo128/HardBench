@@ -300,73 +300,114 @@ class AdoraDualRobotConfig(RobotConfig):
 class RealmanRobotConfig(RobotConfig):
 
     right_arm_config = {}
-    # right_arm_config['usb_port'] = "/dev/ttyUSB0"
+    right_arm_config['port'] = "8080"
     right_arm_config['ip'] = "169.254.128.19"
-    right_arm_config['fps'] = 30
-    # right_arm_config['calibration_dir'] = ".cache/calibration/adora_dual_right"
-    # right_arm_config['start_pose'] = [90.0, 90.0, -90.0, -90.0, 0.0, 0.0, 0.0]
-    # right_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
-    # right_arm_config['joint_n_limit'] = [-169.0, -102.0, -169.0, -167.0, -169.0, -87.0, -169.0]
-    # right_leader_arm = DynamixelMotorsBusConfig(
-    #     port=right_arm_config['usb_port'],
-    #     motors={
-    #         "joint_1": [1, "xl330-m288"],
-    #         "joint_2": [2, "xl330-m288"],
-    #         "joint_3": [3, "xl330-m288"],
-    #         "joint_4": [4, "xl330-m288"],
-    #         "joint_5": [5, "xl330-m288"],
-    #         "joint_6": [6, "xl330-m288"],
-    #         "joint_7": [7, "xl330-m288"],
-    #         "gripper": [8, "xl330-m288"],
-    #     },
-    # )
+    right_arm_config['fps'] = 25
+    right_arm_config['start_pose'] = [90.0, 90.0, -90.0, -90.0, 0.0, 0.0, 0.0]
+    right_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
+    right_arm_config['joint_n_limit'] = [-169.0, -102.0, -169.0, -167.0, -169.0, -87.0, -169.0]
+    right_leader_arm = DynamixelMotorsBusConfig(
+        port=right_arm_config['port'],
+        motors={
+            "joint_1": [1, "realman-motor"],
+            "joint_2": [2, "realman-motor"],
+            "joint_3": [3, "realman-motor"],
+            "joint_4": [4, "realman-motor"],
+            "joint_5": [5, "realman-motor"],
+            "joint_6": [6, "realman-motor"],
+            "joint_7": [7, "realman-motor"],
+            "pose_x":  [8,  "realman-pose"],
+            "pose_y":  [9,  "realman-pose"],
+            "pose_z":  [10,  "realman-pose"],
+            "pose_qx":  [11,  "realman-pose"],
+            "pose_qy": [12, "realman-pose"],
+            "pose_qz": [13, "realman-pose"],
+            "pose_qw": [14, "realman-pose"],
+            "gripper": [15, "realman-gripper"],
+            "lift_height": [16, "realman-gripper"],
+
+        },
+    )
 
     left_arm_config = {}
-    # left_arm_config['usb_port'] = "/dev/ttyUSB1"
+    left_arm_config['port'] = "8080"
     left_arm_config['ip'] = "169.254.128.18"
-    left_arm_config['fps'] = 30
-    # left_arm_config['calibration_dir'] = ".cache/calibration/adora_dual_left"
-    # left_arm_config['start_pose'] = [-90.0, 90.0, 90.0, -90.0, 0.0, 0.0, 0.0]
-    # left_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
-    # left_arm_config['joint_n_limit'] = [-169.0, -102.0, -169.0, -167.0, -169.0, -87.0, -169.0]
-    # left_leader_arm = DynamixelMotorsBusConfig(
-    #     port=left_arm_config['usb_port'],
-    #     motors={
-    #         "joint_1": [1, "xl330-m288"],
-    #         "joint_2": [2, "xl330-m288"],
-    #         "joint_3": [3, "xl330-m288"],
-    #         "joint_4": [4, "xl330-m288"],
-    #         "joint_5": [5, "xl330-m288"],
-    #         "joint_6": [6, "xl330-m288"],
-    #         "joint_7": [7, "xl330-m288"],
-    #         "gripper": [8, "xl330-m288"],
-    #     },
-    # )
+    left_arm_config['fps'] = 25
+    left_arm_config['start_pose'] = [-90.0, 90.0, 90.0, -90.0, 0.0, 0.0, 0.0]
+    left_arm_config['joint_p_limit'] = [169.0, 102.0, 169.0, 52.0, 169.0, 117.0, 169.0]
+    left_arm_config['joint_n_limit'] = [-169.0, -102.0, -169.0, -167.0, -169.0, -87.0, -169.0]
+    left_leader_arm = DynamixelMotorsBusConfig(
+        port=left_arm_config['port'],
+        motors={
+            "joint_1": [1, "realman-motor"],
+            "joint_2": [2, "realman-motor"],
+            "joint_3": [3, "realman-motor"],
+            "joint_4": [4, "realman-motor"],
+            "joint_5": [5, "realman-motor"],
+            "joint_6": [6, "realman-motor"],
+            "joint_7": [7, "realman-motor"],
+            "pose_x":  [8,  "realman-pose"],
+            "pose_y":  [9,  "realman-pose"],
+            "pose_z":  [10,  "realman-pose"],
+            "pose_qw":  [11,  "realman-pose"],
+            "pose_qx": [12, "realman-pose"],
+            "pose_qy": [13, "realman-pose"],
+            "pose_qz": [14, "realman-pose"],
+            "gripper": [15, "realman-gripper"],
+
+        },
+    )
 
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {
-            "top": OpenCVCameraConfig(
+            "image_top": OpenCVCameraConfig(
                 camera_index=20,
-                fps=30,
+                fps=25,
                 width=640,
                 height=480,
             ),
-            "left_wrist": OpenCVCameraConfig(
+            "image_right": OpenCVCameraConfig(
                 camera_index=4,
-                fps=30,
+                fps=25,
                 width=640,
                 height=480,
             ),
-            "right_wrist": OpenCVCameraConfig(
+            "image_left": OpenCVCameraConfig(
                 camera_index=22,
-                fps=30,
+                fps=25,
                 width=640,
                 height=480,
             ),
+            "image_depth_top": OpenCVCameraConfig(
+                camera_index=20,
+                fps=25,
+                width=640,
+                height=480,
+            ),
+            "image_depth_right": OpenCVCameraConfig(
+                camera_index=4,
+                fps=25,
+                width=640,
+                height=480,
+            ),
+            "image_depth_left": OpenCVCameraConfig(
+                camera_index=22,
+                fps=25,
+                width=640,
+                height=480,
+            ),
+            
+        }
+    )
+    use_videos: bool = False
+    microphones: dict[str, int] = field(
+        default_factory=lambda: {
+            # "audio_right": 2,
+            # "audio_left": 4,
         }
     )
 
-    mock: bool = False
+
 
 
 @RobotConfig.register_subclass("pika_v1")
