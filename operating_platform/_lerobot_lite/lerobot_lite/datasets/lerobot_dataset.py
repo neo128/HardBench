@@ -285,7 +285,7 @@ class LeRobotDatasetMetadata:
         for key in self.video_keys:
             if not self.features[key].get("info", None):
                 video_path = self.root / self.get_video_file_path(ep_index=0, vid_key=key)
-                self.info["features"][key]["info"] = get_video_info(video_path)
+                # self.info["features"][key]["info"] = get_video_info(video_path)
 
     def __repr__(self):
         feature_keys = list(self.features)

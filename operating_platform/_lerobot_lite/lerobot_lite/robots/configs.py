@@ -315,19 +315,19 @@ class RealmanRobotConfig(RobotConfig):
         default_factory=lambda: {
             "top": OpenCVCameraConfig(
                 camera_index=20,
-                fps=30,
+                fps=20,
                 width=640,
                 height=480,
             ),
             "left_wrist": OpenCVCameraConfig(
                 camera_index=4,
-                fps=30,
+                fps=20,
                 width=640,
                 height=480,
             ),
             "right_wrist": OpenCVCameraConfig(
                 camera_index=22,
-                fps=30,
+                fps=20,
                 width=640,
                 height=480,
             ),

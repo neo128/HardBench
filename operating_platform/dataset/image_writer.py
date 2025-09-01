@@ -17,6 +17,7 @@ import multiprocessing
 import queue
 import threading
 from pathlib import Path
+from PIL import Image
 
 import numpy as np
 import PIL.Image
@@ -37,48 +38,116 @@ def safe_stop_image_writer(func):
 
     return wrapper
 
+def image_array_to_pil_image(
+    image_array: np.ndarray,
+    range_check: bool = True,
+    is_depth: bool = False,
+) -> Image.Image:
+    """
+    输入：
+        - RGB: (H, W, 3) 或 (3, H, W)，uint8 或 float[0,1]
+        - 深度: (H, W) 或 (H, W, 3) 或 (3, H, W)，uint16
+    输出：
+        PIL.Image.Image（RGB 或 16-bit 灰度）
+    """
 
-def image_array_to_pil_image(image_array: np.ndarray, range_check: bool = True) -> PIL.Image.Image:
-    # TODO(aliberts): handle 1 channel and 4 for depth images
-    if image_array.ndim != 3:
-        raise ValueError(f"The array has {image_array.ndim} dimensions, but 3 is expected for an image.")
+    # ---------- 1. 统一成 HWC ----------
+    if image_array.ndim == 2:  # (H, W)
+        image_array = image_array[..., None]  # (H, W, 1)
+    elif image_array.ndim == 3:
+        if image_array.shape[0] == 3:  # (3, H, W) -> (H, W, 3)
+            image_array = image_array.transpose(1, 2, 0)
+        # 否则保持 (H, W, C)
+    else:
+        raise ValueError(f"Unsupported ndim {image_array.ndim}")
 
-    if image_array.shape[0] == 3:
-        # Transpose from pytorch convention (C, H, W) to (H, W, C)
-        image_array = image_array.transpose(1, 2, 0)
+    H, W, C = image_array.shape
 
-    elif image_array.shape[-1] != 3:
-        raise NotImplementedError(
-            f"The image has {image_array.shape[-1]} channels, but 3 is required for now."
-        )
+    # ---------- 2. 深度图 ----------
+    if is_depth:
+        if image_array.dtype != np.uint16:
+            image_array = image_array.astype(np.uint16)
+        # 取第一通道即可
+        return Image.fromarray(image_array[..., 0], mode='I;16')
+
+    # ---------- 3. 普通 RGB ----------
+    if C == 1:
+        mode = 'L'
+    elif C == 3:
+        mode = 'RGB'
+    elif C == 4:
+        mode = 'RGBA'
+    else:
+        raise ValueError(f"Unsupported channel count {C}")
 
     if image_array.dtype != np.uint8:
         if range_check:
-            max_ = image_array.max().item()
-            min_ = image_array.min().item()
+            max_, min_ = image_array.max(), image_array.min()
             if max_ > 1.0 or min_ < 0.0:
                 raise ValueError(
-                    "The image data type is float, which requires values in the range [0.0, 1.0]. "
-                    f"However, the provided range is [{min_}, {max_}]. Please adjust the range or "
-                    "provide a uint8 image with values in the range [0, 255]."
+                    f"Float image values must be in [0, 1]. Got [{min_}, {max_}]."
                 )
-
         image_array = (image_array * 255).astype(np.uint8)
 
-    return PIL.Image.fromarray(image_array)
+    return Image.fromarray(image_array, mode=mode)
 
 
-def write_image(image: np.ndarray | PIL.Image.Image, fpath: Path):
+def write_image(
+    image: np.ndarray | Image.Image,
+    fpath: Path,
+    is_depth: bool = False,
+):
     try:
         if isinstance(image, np.ndarray):
-            img = image_array_to_pil_image(image)
-        elif isinstance(image, PIL.Image.Image):
+            img = image_array_to_pil_image(image, is_depth=is_depth)
+        elif isinstance(image, Image.Image):
             img = image
         else:
             raise TypeError(f"Unsupported image type: {type(image)}")
         img.save(fpath)
     except Exception as e:
         print(f"Error writing image {fpath}: {e}")
+# def image_array_to_pil_image(image_array: np.ndarray, range_check: bool = True) -> PIL.Image.Image:
+#     # TODO(aliberts): handle 1 channel and 4 for depth images
+#     if image_array.ndim != 3:
+#         raise ValueError(f"The array has {image_array.ndim} dimensions, but 3 is expected for an image.")
+
+#     if image_array.shape[0] == 3:
+#         # Transpose from pytorch convention (C, H, W) to (H, W, C)
+#         image_array = image_array.transpose(1, 2, 0)
+
+#     elif image_array.shape[-1] != 3:
+#         raise NotImplementedError(
+#             f"The image has {image_array.shape[-1]} channels, but 3 is required for now."
+#         )
+
+#     if image_array.dtype != np.uint8:
+#         if range_check:
+#             max_ = image_array.max().item()
+#             min_ = image_array.min().item()
+#             if max_ > 1.0 or min_ < 0.0:
+#                 raise ValueError(
+#                     "The image data type is float, which requires values in the range [0.0, 1.0]. "
+#                     f"However, the provided range is [{min_}, {max_}]. Please adjust the range or "
+#                     "provide a uint8 image with values in the range [0, 255]."
+#                 )
+
+#         image_array = (image_array * 255).astype(np.uint8)
+
+#     return PIL.Image.fromarray(image_array)
+
+
+# def write_image(image: np.ndarray | PIL.Image.Image, fpath: Path):
+#     try:
+#         if isinstance(image, np.ndarray):
+#             img = image_array_to_pil_image(image)
+#         elif isinstance(image, PIL.Image.Image):
+#             img = image
+#         else:
+#             raise TypeError(f"Unsupported image type: {type(image)}")
+#         img.save(fpath)
+#     except Exception as e:
+#         print(f"Error writing image {fpath}: {e}")
 
 
 def worker_thread_loop(queue: queue.Queue):
@@ -88,7 +157,11 @@ def worker_thread_loop(queue: queue.Queue):
             queue.task_done()
             break
         image_array, fpath = item
-        write_image(image_array, fpath)
+        if 'depth' in str(fpath):
+            write_image(image_array, fpath, True)
+        else:
+            write_image(image_array, fpath, False)
+
         queue.task_done()
 
 

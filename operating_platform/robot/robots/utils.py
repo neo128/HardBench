@@ -125,10 +125,10 @@ def make_robot_from_config(config: RobotConfig):
         print("In PikaV1Manipulator")
         return PikaV1Manipulator(config)
     
-    # elif isinstance(config, AdoraDualRobotConfig):
-    #     from lerobot.common.robot_devices.robots.adora_dual_manipulator import AdoraDualManipulator
-    #     print("In AdoraDualRobotConfig")
-    #     return AdoraDualManipulator(config)
+    elif isinstance(config, RealmanRobotConfig):
+        from operating_platform.robot.robots.realman_manipulator import RealmanManipulator
+        print("In RealmanRobotConfig")
+        return RealmanManipulator(config)
     else:
         print("Not match robot")
         raise ValueError(f"Robot type is not available.")

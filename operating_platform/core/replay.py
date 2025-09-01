@@ -5,6 +5,7 @@ from pathlib import Path
 from pprint import pformat
 
 import draccus
+import torch
 
 from operating_platform.core.daemon import Daemon
 
@@ -44,14 +45,13 @@ class ReplayConfig:
 @draccus.wrap()
 def replay(cfg: ReplayConfig):
     init_logging()
-    logging.info(pformat(asdict(cfg)))
+    # logging.info(pformat(asdict(cfg)))
 
     # robot = make_robot_from_config(cfg.robot)
     dataset = DoRobotDataset(cfg.dataset.repo_id, root=cfg.dataset.root, episodes=[cfg.dataset.episode])
     actions = dataset.hf_dataset.select_columns("action")
     # robot.connect()
     robot = cfg.robot
-
     log_say("Replaying episode", cfg.play_sounds, blocking=True)
     for idx in range(dataset.num_frames):
         start_episode_t = time.perf_counter()
@@ -60,9 +60,13 @@ def replay(cfg: ReplayConfig):
         action = {}
         for i, name in enumerate(dataset.features["action"]["names"]):
             action[name] = action_array[i]
-
-        # print(f"action: {action}")
-        robot.send_action(action)
+            # 将 action 转换为 torch.Tensor
+            try:
+                action_tensor = torch.tensor([action[name].item() for name in dataset.features["action"]["names"] if name in action])
+            except KeyError as e:
+                print(f"KeyError: {e} not found in action")
+                continue
+        robot.send_action(action_tensor)
 
         dt_s = time.perf_counter() - start_episode_t
         busy_wait(1 / dataset.fps - dt_s)

@@ -60,7 +60,6 @@ local$ rerun ws://localhost:9087
 ```
 
 """
-import webbrowser
 
 import argparse
 import gc
@@ -75,11 +74,9 @@ import torch
 import torch.utils.data
 import tqdm
 import threading
-import cv2
 from threading import Event
 
 from operating_platform.dataset.dorobot_dataset import DoRobotDataset
-
 
 
 class EpisodeSampler(torch.utils.data.Sampler):
@@ -110,8 +107,8 @@ def visualize_dataset(
     batch_size: int = 32,
     num_workers: int = 0,
     mode: str = "local",
-    web_port: int = 9195,
-    ws_port: int = 9285,
+    web_port: int = 9095,
+    ws_port: int = 9185,
     save: bool = False,
     output_dir: Path | None = None,
     run_duration: float = 0.0,
@@ -137,7 +134,6 @@ def visualize_dataset(
 
     if mode not in ["local", "distant"]:
         raise ValueError(mode)
-    logging.basicConfig(level=logging.DEBUG)
 
     spawn_local_viewer = mode == "local" and not save
     rr.init(f"{repo_id}/episode_{episode_index}", spawn=spawn_local_viewer)
@@ -149,7 +145,8 @@ def visualize_dataset(
 
     try:
         if mode == "distant":
-            rr.serve_web(open_browser=False, web_port=web_port, ws_port=ws_port)
+            rr.serve_web(open_browser=True, web_port=web_port)
+
         logging.info("Logging to Rerun")
 
         for batch in tqdm.tqdm(dataloader, total=len(dataloader)):
@@ -157,22 +154,12 @@ def visualize_dataset(
             for i in range(len(batch["index"])):
                 rr.set_time_sequence("frame_index", batch["frame_index"][i].item())
                 rr.set_time_seconds("timestamp", batch["timestamp"][i].item())
+
                 # display each camera image
                 for key in dataset.meta.camera_keys:
-                    if 'depth' in key:
-                        continue  
                     # TODO(rcadene): add `.compress()`? is it lossless?
-                    # rr.log(key, rr.Image(to_hwc_uint8_numpy(batch[key][i])))
-                    if len(dataset.meta.video_keys)>0:
-                        # dataset.meta.video_path
-                        pass
-                    elif len(dataset.meta.image_keys)>0:
-                        img_path = dataset.root / dataset.meta.get_image_file_path(img_key=key, ep_index=episode_index, frame_index=batch["frame_index"][i])
-                        # 1. 验证路径是否存在
-                        if not Path(img_path).exists():
-                            raise FileNotFoundError(f"Image path does not exist: {img_path}")
-                        img = cv2.imread(img_path)
-                        rr.log(key, rr.Image(img))
+                    rr.log(key, rr.Image(to_hwc_uint8_numpy(batch[key][i])))
+
                 # display each dimension of action space (e.g. actuators command)
                 if "action" in batch:
                     for dim_idx, val in enumerate(batch["action"][i]):
@@ -212,15 +199,13 @@ def visualize_dataset(
                         print("stop_event should been set")
                         raise ValueError(stop_event)
                     while stop_event.is_set() is False:
-                        time.sleep(0.05)
+                        time.sleep(1)
                 except KeyboardInterrupt:
                     print("\nCtrl-C received. Exiting.")
 
     finally:
         rr.disconnect()
 
-
-    
 
 def main():
     parser = argparse.ArgumentParser()

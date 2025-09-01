@@ -15,11 +15,12 @@ from datasets import concatenate_datasets, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.constants import REPOCARD_NAME
 from huggingface_hub.errors import RevisionNotFoundError
+import shutil  # 需要导入shutil模块
 
 
 from operating_platform.dataset.compute_stats import aggregate_stats, compute_episode_stats
 from operating_platform.dataset.image_writer import AsyncImageWriter, write_image
-from operating_platform.dataset.audio_writer import AsyncAudioWriter
+# from operating_platform.dataset.audio_writer import AsyncAudioWriter
 from operating_platform.dataset.functions import (
     check_version_compatibility,
     get_features_from_robot,
@@ -30,6 +31,7 @@ from operating_platform.utils.constants import DOROBOT_DATASET
 from operating_platform.utils.dataset import (
     DEFAULT_FEATURES,
     DEFAULT_IMAGE_PATH,
+    DEFAULT_IMAGE_PATH_DEPTH,
     DEFAULT_AUDIO_PATH,
     INFO_PATH,
     TASKS_PATH,
@@ -70,7 +72,7 @@ from operating_platform.utils.video import (
 from operating_platform.robot.robots.utils import Robot
 
 
-DOROBOT_DATASET_VERSION = "v1.0"
+DOROBOT_DATASET_VERSION = "v2.1"
 
 
 class DoRobotDatasetMetadata:
@@ -366,7 +368,6 @@ class DoRobotDatasetMetadata:
         obj = cls.__new__(cls)
         obj.repo_id = repo_id
         obj.root = Path(root) if root is not None else DOROBOT_DATASET / repo_id
-
         obj.root.mkdir(parents=True, exist_ok=True)
 
         if robot is not None:
@@ -829,11 +830,18 @@ class DoRobotDataset(torch.utils.data.Dataset):
         fpath = DEFAULT_IMAGE_PATH.format(
             image_key=image_key, episode_index=episode_index, frame_index=frame_index
         )
+
         return self.root / fpath
-    
-    def _get_audio_file_path(self, episode_index: int, audio_key: str) -> Path:
-        fpath = DEFAULT_AUDIO_PATH.format(
-            audio_key=audio_key, episode_index=episode_index, episode_chunk=self.meta.get_episode_chunk(episode_index)
+    # 修改部分
+    def _get_image_file_path(self, episode_index: int, image_key: str, frame_index: int) -> Path:
+        # 检查key是否包含深度图标识
+        is_depth_key = "depth" in image_key.lower()  # 或其他命名规则
+        template = DEFAULT_IMAGE_PATH_DEPTH if is_depth_key else DEFAULT_IMAGE_PATH
+        
+        fpath = template.format(
+            image_key=image_key, 
+            episode_index=episode_index, 
+            frame_index=frame_index
         )
         return self.root / fpath
 
@@ -937,7 +945,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
         self._wait_image_writer()
         self._save_episode_table(episode_buffer, episode_index)
         ep_stats = compute_episode_stats(episode_buffer, self.features)
-
         if len(self.meta.video_keys) > 0:
             video_paths = self.encode_episode_videos(episode_index)
             for key in self.meta.video_keys:
@@ -1221,7 +1228,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
         obj.tolerance_s = tolerance_s
         obj.image_writer = None
         obj.audio_writer = None
-
         if image_writer_processes or image_writer_threads:
             obj.start_image_writer(image_writer_processes, image_writer_threads)
         if len(robot.microphones) > 0:

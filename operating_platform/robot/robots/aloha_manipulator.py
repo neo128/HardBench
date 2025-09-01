@@ -22,7 +22,7 @@ import zmq
 
 
 from operating_platform.robot.robots.utils import RobotDeviceNotConnectedError
-from operating_platform.robot.robots.configs import AlohaRobotConfig
+from operating_platform.robot.robots.configs import RealmanRobotConfig
 from operating_platform.robot.robots.com_configs.cameras import CameraConfig, OpenCVCameraConfig
 
 from operating_platform.robot.robots.camera import Camera
@@ -83,7 +83,7 @@ def recv_server():
                 
                 if frame is not None:
                     with lock:
-                        # print(f"Received event_id = {event_id}")
+                        print(f"Received event_id = {event_id}")
                         recv_images[event_id] = frame
 
             if 'jointstat' in event_id and 'master' in event_id:
@@ -183,7 +183,7 @@ def make_cameras_from_configs(camera_configs: dict[str, CameraConfig]) -> list[C
 
 
 class AlohaManipulator:
-    def __init__(self, config: AlohaRobotConfig):
+    def __init__(self, config: RealmanRobotConfig):
         self.config = config
         self.robot_type = self.config.type
 
@@ -652,14 +652,6 @@ class AlohaManipulator:
                 "Aloha is not connected. You need to run `robot.connect()` before disconnecting."
             )
         
-        # for name in self.follower_arms:
-        #     self.follower_arms[name].disconnect()
-
-        # for name in self.leader_arms:
-        #     self.leader_arms[name].disconnect()
-
-        # for name in self.cameras:
-        #     self.cameras[name].disconnect()
 
         self.is_connected = False
         running_server = False

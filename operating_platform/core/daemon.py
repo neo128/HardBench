@@ -98,7 +98,7 @@ class Daemon:
         start_loop_t = time.perf_counter()
 
         observation, action = self.robot.teleop_step(record_data=True)
-
+        
         # if observation is not None:
         #     self.observation = observation.copy()
 
@@ -106,8 +106,7 @@ class Daemon:
         #     self.obs_action = action.copy()
         self.set_observation(observation)
         self.set_obs_action(action)
-
-
+        
         pre_action = self.get_pre_action()
         if pre_action is not None:
             # pre_action = self.pre_action.copy()
@@ -115,7 +114,6 @@ class Daemon:
             action = {"action": action}
         
         dt_s = time.perf_counter() - start_loop_t
-
         if self.fps is not None:
             busy_wait(1 / self.fps - dt_s)
 

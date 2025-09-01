@@ -1,6 +1,7 @@
 import os
 import datetime
 import json
+import shutil
 
 
 def get_today_date():
@@ -64,7 +65,6 @@ def file_size(path, n):
             subdir_path = os.path.join(path, subdir)
             if not os.path.isdir(subdir_path):
                 continue
-                
             # 先检查子目录中的文件
             found = False
             for file_name in os.listdir(subdir_path):
@@ -116,6 +116,7 @@ def get_data_size(fold_path, data): # 文件大小单位(MB)
         
         entries_1 = os.listdir(task_path) 
         for entry in entries_1:
+            data_path = os.path.join(task_path,entry,"chunk-000")
             if entry == "meta":
                 continue
             if entry == "videos":
@@ -125,6 +126,7 @@ def get_data_size(fold_path, data): # 文件大小单位(MB)
                 size_bytes += file_size(data_path,episode_index)
             if entry == "images":
                 data_path = os.path.join(task_path,entry)
+                print(data_path)
                 size_bytes += file_size(data_path,episode_index)
             if entry == "data":
                 data_path = os.path.join(task_path,entry,"chunk-000")
@@ -192,6 +194,7 @@ def update_dataid_json(path, episode_index, data):
     append_data = {
         "episode_index": episode_index,
         "dataid": str(data["task_data_id"]),
+        "machine_id":str(data["machine_id"]),
     }
     
     # 以追加模式打开文件（如果不存在则创建）
@@ -269,7 +272,12 @@ def delete_dataid_json(path, episode_index, data):
 
 def update_common_record_json(path, data):
     opdata_path = os.path.join(path, "meta", "common_record.json")
-
+    os.makedirs(os.path.dirname(opdata_path), exist_ok=True)
+    if os.path.isfile(opdata_path):
+        with open(opdata_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if "task_id" in data:
+                return
     overwrite_data = {
         "task_id": str(data["task_id"]),
         "task_name": str(data["task_name"]),
@@ -281,6 +289,17 @@ def update_common_record_json(path, data):
         # 写入一行 JSON 数据（每行一个 JSON 对象）
         f.write(json.dumps(overwrite_data, ensure_ascii=False) + '\n')
 
+def check_disk_space(min_gb=1): 
+    # 获取根目录（/）的磁盘使用情况（Docker 默认挂载点）
+    total, used, free = shutil.disk_usage("/") 
+    # 转换为 GB
+    free_gb = free // (2**30)  # 1 GB = 2^30 bytes 
+    if free_gb < min_gb:
+        print(f"警告：剩余存储空间不足 {min_gb}GB（当前剩余 {free_gb}GB）")
+        return False
+    else:
+        print(f"存储空间充足（剩余 {free_gb}GB）")
+        return True
 
 # if __name__ == '__main__':
 #     fold_path = '/home/liuyou/Documents'
