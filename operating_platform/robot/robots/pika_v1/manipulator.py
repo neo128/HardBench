@@ -21,7 +21,7 @@ import zmq
 
 
 from operating_platform.robot.robots.utils import RobotDeviceNotConnectedError
-from operating_platform.robot.robots.configs import AlohaRobotConfig
+from operating_platform.robot.robots.configs import PikaV1RobotConfig
 from operating_platform.robot.robots.com_configs.cameras import CameraConfig, OpenCVCameraConfig
 
 from operating_platform.robot.robots.camera import Camera
@@ -225,7 +225,7 @@ def make_cameras_from_configs(camera_configs: dict[str, CameraConfig]) -> list[C
 
 
 class PikaV1Manipulator:
-    def __init__(self, config: AlohaRobotConfig):
+    def __init__(self, config: PikaV1RobotConfig):
         self.config = config
         self.robot_type = self.config.type
 
