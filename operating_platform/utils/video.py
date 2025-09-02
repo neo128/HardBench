@@ -246,79 +246,80 @@ def encode_video_frames(
     log_level: Optional[str] = "error",
     overwrite: bool = False,
 ) -> None:
-        """More info on ffmpeg arguments tuning on `benchmark/video/README.md`"""
+    """More info on ffmpeg arguments tuning on `benchmark/video/README.md`"""
 
-        # 确保编码器列表已加载
-        _ensure_encoders_loaded()
+    # 确保编码器列表已加载
+    _ensure_encoders_loaded()
 
-        # 获取当前支持的编码器列表
-        available_encoders = _AVAILABLE_ENCODERS
+    # 获取当前支持的编码器列表
+    available_encoders = _AVAILABLE_ENCODERS
 
-        # 用户指定的编码器是否可用
-        if vcodec in available_encoders:
-            pass  # 正常使用指定的编码器
-        else:
-            # 从支持的两个编码器中选择一个可用的
-            supported_candidates = {"libopenh264", "libx264"} & set(available_encoders)
+    # 用户指定的编码器是否可用
+    if vcodec in available_encoders:
+        pass  # 正常使用指定的编码器
+    else:
+        # 从支持的两个编码器中选择一个可用的
+        supported_candidates = {"libopenh264", "libx264"} & set(available_encoders)
 
-            if not supported_candidates:
-                raise ValueError(
-                    "None of the supported encoders are available. "
-                    "Please ensure at least one of 'libopenh264' or 'libx264' is supported by your ffmpeg installation."
-                )
-
-            # 优先选择 libx264，否则选择 libopenh264
-            selected_vcodec = "libx264" if "libx264" in supported_candidates else "libopenh264"
-
-            # 发出警告
-            warnings.warn(
-                f"vcodec '{vcodec}' not available. Automatically switched to '{selected_vcodec}'.",
-                UserWarning
+        if not supported_candidates:
+            raise ValueError(
+                "None of the supported encoders are available. "
+                "Please ensure at least one of 'libopenh264' or 'libx264' is supported by your ffmpeg installation."
             )
 
-            vcodec = selected_vcodec
+        # 优先选择 libx264，否则选择 libopenh264
+        selected_vcodec = "libx264" if "libx264" in supported_candidates else "libopenh264"
 
-        # 剩余逻辑不变（略去，与原函数一致）
-        video_path = Path(video_path)
-        video_path.parent.mkdir(parents=True, exist_ok=True)
-
-        ffmpeg_args = OrderedDict(
-            [
-                ("-f", "image2"),
-                ("-r", str(fps)),
-                ("-i", str(imgs_dir / "frame_%06d.jpg")),
-                ("-vcodec", vcodec),
-                ("-pix_fmt", pix_fmt),
-            ]
+        # 发出警告
+        warnings.warn(
+            f"vcodec '{vcodec}' not available. Automatically switched to '{selected_vcodec}'.",
+            UserWarning
         )
 
-        if g is not None:
-            ffmpeg_args["-g"] = str(g)
+        vcodec = selected_vcodec
 
-        if crf is not None:
-            ffmpeg_args["-crf"] = str(crf)
+    # 剩余逻辑不变（略去，与原函数一致）
+    video_path = Path(video_path)
+    video_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if fast_decode:
-            key = "-svtav1-params" if vcodec == "libsvtav1" else "-tune"
-            value = f"fast-decode={fast_decode}" if vcodec == "libsvtav1" else "fastdecode"
-            ffmpeg_args[key] = value
+    ffmpeg_args = OrderedDict(
+        [
+            ("-f", "image2"),
+            ("-r", str(fps)),
+            ("-i", str(imgs_dir / "frame_%06d.jpg")),
+            ("-vcodec", vcodec),
+            ("-pix_fmt", pix_fmt),
+        ]
+    )
 
-        if log_level is not None:
-            ffmpeg_args["-loglevel"] = str(log_level)
+    if g is not None:
+        ffmpeg_args["-g"] = str(g)
 
-        ffmpeg_args = [item for pair in ffmpeg_args.items() for item in pair]
-        if overwrite:
-            ffmpeg_args.append("-y")
+    if crf is not None:
+        ffmpeg_args["-crf"] = str(crf)
 
-        ffmpeg_cmd = ["ffmpeg"] + ffmpeg_args + [str(video_path)]
-        # redirect stdin to subprocess.DEVNULL to prevent reading random keyboard inputs from terminal
-        subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
+    if fast_decode:
+        key = "-svtav1-params" if vcodec == "libsvtav1" else "-tune"
+        value = f"fast-decode={fast_decode}" if vcodec == "libsvtav1" else "fastdecode"
+        ffmpeg_args[key] = value
 
-        if not video_path.exists():
-            raise OSError(
-                f"Video encoding did not work. File not found: {video_path}. "
-                f"Try running the command manually to debug: `{''.join(ffmpeg_cmd)}`"
-            )
+    if log_level is not None:
+        ffmpeg_args["-loglevel"] = str(log_level)
+
+    ffmpeg_args = [item for pair in ffmpeg_args.items() for item in pair]
+    if overwrite:
+        ffmpeg_args.append("-y")
+
+    ffmpeg_cmd = ["ffmpeg"] + ffmpeg_args + [str(video_path)]
+    # redirect stdin to subprocess.DEVNULL to prevent reading random keyboard inputs from terminal
+    subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
+
+    if not video_path.exists():
+        raise OSError(
+            f"Video encoding did not work. File not found: {video_path}. "
+            f"Try running the command manually to debug: `{''.join(ffmpeg_cmd)}`"
+        )
+        
 def encode_depth_video_frames(
     imgs_dir: Path | str,
     video_path: Path | str,
