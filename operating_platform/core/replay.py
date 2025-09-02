@@ -60,13 +60,16 @@ def replay(cfg: ReplayConfig):
         action = {}
         for i, name in enumerate(dataset.features["action"]["names"]):
             action[name] = action_array[i]
-            # 将 action 转换为 torch.Tensor
-            try:
-                action_tensor = torch.tensor([action[name].item() for name in dataset.features["action"]["names"] if name in action])
-            except KeyError as e:
-                print(f"KeyError: {e} not found in action")
-                continue
-        robot.send_action(action_tensor)
+            
+        #     # 将 action 转换为 torch.Tensor
+        #     try:
+        #         action_tensor = torch.tensor([action[name].item() for name in dataset.features["action"]["names"] if name in action])
+        #     except KeyError as e:
+        #         print(f"KeyError: {e} not found in action")
+        #         continue
+        # robot.send_action(action_tensor)
+
+        robot.send_action(action)
 
         dt_s = time.perf_counter() - start_episode_t
         busy_wait(1 / dataset.fps - dt_s)
