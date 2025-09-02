@@ -137,6 +137,10 @@ def main():
                 # --------------------------
         elif event_type == "ERROR":
             raise RuntimeError(event["error"])
+        
+        if event_type == "STOP":
+            break
+
 
 if __name__ == "__main__":
     main()

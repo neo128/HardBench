@@ -1,5 +1,5 @@
 [project]
-name = "dr-robot-so101"
+name = "dr-component-arm-so101"
 version = "0.1.0"
 description = ""
 authors = [
@@ -9,16 +9,13 @@ readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "dora-rs-cli (>=0.3.11,<0.4.0)",
-    "pyzmq (>=27.0.0,<28.0.0)",
-    "opencv-python (>= 4.1.1)",
-    "Pillow",
     "feetech-servo-sdk>=1.0.0",
     "numpy",
     "deepdiff",
     "tqdm",
     "pygame",
     "draccus",
-    "pynput",
+    "pynput"
 ]
 
 [tool.setuptools]

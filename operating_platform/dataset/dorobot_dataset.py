@@ -20,7 +20,7 @@ import shutil  # 需要导入shutil模块
 
 from operating_platform.dataset.compute_stats import aggregate_stats, compute_episode_stats
 from operating_platform.dataset.image_writer import AsyncImageWriter, write_image
-# from operating_platform.dataset.audio_writer import AsyncAudioWriter
+from operating_platform.dataset.audio_writer import AsyncAudioWriter
 from operating_platform.dataset.functions import (
     check_version_compatibility,
     get_features_from_robot,
@@ -826,13 +826,13 @@ class DoRobotDataset(torch.utils.data.Dataset):
             ep_buffer[key] = current_ep_idx if key == "episode_index" else []
         return ep_buffer
 
-    def _get_image_file_path(self, episode_index: int, image_key: str, frame_index: int) -> Path:
-        fpath = DEFAULT_IMAGE_PATH.format(
-            image_key=image_key, episode_index=episode_index, frame_index=frame_index
-        )
+    # def _get_image_file_path(self, episode_index: int, image_key: str, frame_index: int) -> Path:
+    #     fpath = DEFAULT_IMAGE_PATH.format(
+    #         image_key=image_key, episode_index=episode_index, frame_index=frame_index
+    #     )
 
-        return self.root / fpath
-    # 修改部分
+    #     return self.root / fpath
+    
     def _get_image_file_path(self, episode_index: int, image_key: str, frame_index: int) -> Path:
         # 检查key是否包含深度图标识
         is_depth_key = "depth" in image_key.lower()  # 或其他命名规则
@@ -842,6 +842,12 @@ class DoRobotDataset(torch.utils.data.Dataset):
             image_key=image_key, 
             episode_index=episode_index, 
             frame_index=frame_index
+        )
+        return self.root / fpath
+    
+    def _get_audio_file_path(self, episode_index: int, audio_key: str) -> Path:
+        fpath = DEFAULT_AUDIO_PATH.format(
+            audio_key=audio_key, episode_index=episode_index, episode_chunk=self.meta.get_episode_chunk(episode_index)
         )
         return self.root / fpath
 

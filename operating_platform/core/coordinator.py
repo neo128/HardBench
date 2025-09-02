@@ -263,7 +263,7 @@ class Coordinator:
             # resume 变量现在可用于后续逻辑
             print(f"Resume mode: {'Enabled' if resume else 'Disabled'}")
 
-            record_cfg = RecordConfig(fps=DEFAULT_FPS, repo_id=repo_id, resume=resume, root=target_dir)
+            record_cfg = RecordConfig(fps=DEFAULT_FPS, repo_id=repo_id, video=self.daemon.robot.use_videos, resume=resume, root=target_dir)
             self.record = Record(fps=DEFAULT_FPS, robot=self.daemon.robot, daemon=self.daemon, record_cfg = record_cfg, record_cmd=msg)
             # 发送响应
             await self.send_response('start_collection', "success")
@@ -332,8 +332,7 @@ class Coordinator:
 
         elif data.get('cmd') == 'start_replay':
             print("处理开始回放命令...")
-            # msg拿不到信息
-            # msg = data.get()
+            msg = data.get()
             if self.recording == True:
                 await self.send_response('start_replay', "fail")
                 print("Recording is running, cannot start replay.")
@@ -343,10 +342,11 @@ class Coordinator:
                 print("Replay is already running.")
                 return
             self.replaying = True
-            # task_id = msg.get('task_id')
-            # task_name = msg.get('task_name')
-            # task_data_id = msg.get('task_data_id')
-            # repo_id=f"{task_name}_{task_id}"
+
+            task_id = msg.get('task_id')
+            task_name = msg.get('task_name')
+            task_data_id = msg.get('task_data_id')
+            repo_id=f"{task_name}_{task_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
 
@@ -380,7 +380,7 @@ class Coordinator:
                     # 主线程执行可视化（阻塞直到窗口关闭或超时）
                     visualize_dataset(
                         dataset,
-                        mode="local",
+                        mode="distant",
                         episode_index=ep_index,
                         web_port=RERUN_WEB_PORT,
                         ws_port=RERUN_WS_PORT,
