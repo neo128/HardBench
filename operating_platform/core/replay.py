@@ -69,6 +69,8 @@ def replay(cfg: ReplayConfig):
         #         continue
         # robot.send_action(action_tensor)
 
+        print(f"Replay action: {action}")
+        
         robot.send_action(action)
 
         dt_s = time.perf_counter() - start_episode_t
