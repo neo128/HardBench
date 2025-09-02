@@ -1,4 +1,18 @@
-import os
+#!/usr/bin/env python
+
+# Copyright 2024 The HuggingFace Inc. team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import contextlib
 import logging
 import shutil
@@ -15,38 +29,28 @@ from datasets import concatenate_datasets, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.constants import REPOCARD_NAME
 from huggingface_hub.errors import RevisionNotFoundError
-import shutil  # 需要导入shutil模块
 
-
-from operating_platform.dataset.compute_stats import aggregate_stats, compute_episode_stats
-from operating_platform.dataset.image_writer import AsyncImageWriter, write_image
-# from operating_platform.dataset.audio_writer import AsyncAudioWriter
-from operating_platform.dataset.functions import (
-    check_version_compatibility,
-    get_features_from_robot,
-    get_safe_version,
-
-)
-from operating_platform.utils.constants import DOROBOT_DATASET
-from operating_platform.utils.dataset import (
+from lerobot_lite.constants import HF_LEROBOT_HOME
+from lerobot_lite.datasets.compute_stats import aggregate_stats, compute_episode_stats
+from lerobot_lite.datasets.image_writer import AsyncImageWriter, write_image
+from lerobot_lite.utils.dataset import (
     DEFAULT_FEATURES,
     DEFAULT_IMAGE_PATH,
-    DEFAULT_IMAGE_PATH_DEPTH,
-    DEFAULT_AUDIO_PATH,
     INFO_PATH,
     TASKS_PATH,
     append_jsonlines,
     backward_compatible_episodes_stats,
     check_delta_timestamps,
     check_timestamps_sync,
+    check_version_compatibility,
     create_empty_dataset_info,
     create_lerobot_dataset_card,
     embed_images,
     get_delta_indices,
     get_episode_data_index,
-
+    get_features_from_robot,
     get_hf_features_from_features,
-
+    get_safe_version,
     hf_transform_to_torch,
     is_valid_version,
     load_episodes,
@@ -60,22 +64,19 @@ from operating_platform.utils.dataset import (
     write_episode_stats,
     write_info,
     write_json,
-    delete_episode,
-    delete_episode_stats,
 )
-from operating_platform.utils.video import (
+from lerobot_lite.utils.video import (
     VideoFrame,
     decode_video_frames_torchvision,
     encode_video_frames,
     get_video_info,
 )
-from operating_platform.robot.robots.utils import Robot
+from lerobot_lite.robots.utils import Robot
 
-LEROBOT_DATASET_VERSION = "v2.1"
-DOROBOT_DATASET_VERSION = "v1.0"
+CODEBASE_VERSION = "v2.1"
 
 
-class DoRobotDatasetMetadata:
+class LeRobotDatasetMetadata:
     def __init__(
         self,
         repo_id: str,
@@ -84,8 +85,8 @@ class DoRobotDatasetMetadata:
         force_cache_sync: bool = False,
     ):
         self.repo_id = repo_id
-        self.revision = revision if revision else DOROBOT_DATASET_VERSION
-        self.root = Path(root) if root is not None else DOROBOT_DATASET / repo_id
+        self.revision = revision if revision else CODEBASE_VERSION
+        self.root = Path(root) if root is not None else HF_LEROBOT_HOME / repo_id
 
         try:
             if force_cache_sync:
@@ -101,7 +102,7 @@ class DoRobotDatasetMetadata:
 
     def load_metadata(self):
         self.info = load_info(self.root)
-        check_version_compatibility(self.repo_id, self._version, DOROBOT_DATASET_VERSION)
+        check_version_compatibility(self.repo_id, self._version, CODEBASE_VERSION)
         self.tasks, self.task_to_task_index = load_tasks(self.root)
         self.episodes = load_episodes(self.root)
         if self._version < packaging.version.parse("v2.1"):
@@ -128,26 +129,16 @@ class DoRobotDatasetMetadata:
     @property
     def _version(self) -> packaging.version.Version:
         """Codebase version used to create this dataset."""
-        return packaging.version.parse(self.info["dorobot_dataset_version"])
+        return packaging.version.parse(self.info["codebase_version"])
 
     def get_data_file_path(self, ep_index: int) -> Path:
         ep_chunk = self.get_episode_chunk(ep_index)
         fpath = self.data_path.format(episode_chunk=ep_chunk, episode_index=ep_index)
         return Path(fpath)
-    
-    def get_image_file_path(self, ep_index: int, img_key: str, frame_index) -> Path:
-        # ep_chunk = self.get_episode_chunk(ep_index)
-        fpath = self.image_path.format(image_key=img_key, episode_index=ep_index, frame_index=frame_index)
-        return Path(fpath)
 
     def get_video_file_path(self, ep_index: int, vid_key: str) -> Path:
         ep_chunk = self.get_episode_chunk(ep_index)
         fpath = self.video_path.format(episode_chunk=ep_chunk, video_key=vid_key, episode_index=ep_index)
-        return Path(fpath)
-    
-    def get_audio_file_path(self, ep_index: int, aud_key: str) -> Path:
-        ep_chunk = self.get_episode_chunk(ep_index)
-        fpath = self.audio_path.format(episode_chunk=ep_chunk, audio_key=aud_key, episode_index=ep_index)
         return Path(fpath)
 
     def get_episode_chunk(self, ep_index: int) -> int:
@@ -162,16 +153,6 @@ class DoRobotDatasetMetadata:
     def video_path(self) -> str | None:
         """Formattable string for the video files."""
         return self.info["video_path"]
-    
-    @property
-    def image_path(self) -> str | None:
-        """Formattable string for the audio files."""
-        return self.info["image_path"]
-    
-    @property
-    def audio_path(self) -> str | None:
-        """Formattable string for the audio files."""
-        return self.info["audio_path"]
 
     @property
     def robot_type(self) -> str | None:
@@ -202,11 +183,6 @@ class DoRobotDatasetMetadata:
     def camera_keys(self) -> list[str]:
         """Keys to access visual modalities (regardless of their storage method)."""
         return [key for key, ft in self.features.items() if ft["dtype"] in ["video", "image"]]
-    
-    @property
-    def mic_keys(self) -> list[str]:
-        """Keys to access visual modalities stored as audio."""
-        return [key for key, ft in self.features.items() if ft["dtype"] in ["audio"]]
 
     @property
     def names(self) -> dict[str, list | dict]:
@@ -301,36 +277,6 @@ class DoRobotDatasetMetadata:
         self.stats = aggregate_stats([self.stats, episode_stats]) if self.stats else episode_stats
         write_episode_stats(episode_index, episode_stats, self.root)
 
-    def remove_episode(self, ep_index: int) -> None:
-    #     episode_tasks: list[str],
-    #     episode_stats: dict[str, dict],
-        self.info["total_episodes"] -= 1
-
-        episode = self.episodes[ep_index]
-        episode_length = episode["length"]
-        self.info["total_frames"] -= episode_length
-
-        # chunk = self.get_episode_chunk(ep_index)
-        # if chunk >= self.total_chunks:
-        #     self.info["total_chunks"] += 1
-
-        self.info["splits"] = {"train": f"0:{self.info['total_episodes']}"}
-        self.info["total_videos"] -= len(self.video_keys)
-
-        write_info(self.info, self.root)
-
-    #     episode_dict = {
-    #         "episode_index": episode_index,
-    #         "tasks": episode_tasks,
-    #         "length": episode_length,
-    #     }
-    #     self.episodes[episode_index] = episode_dict
-        delete_episode(ep_index, self.root)
-
-    #     self.episodes_stats[episode_index] = episode_stats
-    #     self.stats = aggregate_stats([self.stats, episode_stats]) if self.stats else episode_stats
-        delete_episode_stats(ep_index, self.root)
-
     def update_video_info(self) -> None:
         """
         Warning: this function writes info from first episode videos, implicitly assuming that all videos have
@@ -362,12 +308,12 @@ class DoRobotDatasetMetadata:
         robot_type: str | None = None,
         features: dict | None = None,
         use_videos: bool = True,
-        use_audios: bool = False,
-    ) -> "DoRobotDatasetMetadata":
-        """Creates metadata for a DoRobotDataset."""
+    ) -> "LeRobotDatasetMetadata":
+        """Creates metadata for a LeRobotDataset."""
         obj = cls.__new__(cls)
         obj.repo_id = repo_id
-        obj.root = Path(root) if root is not None else DOROBOT_DATASET / repo_id
+        obj.root = Path(root) if root is not None else HF_LEROBOT_HOME / repo_id
+
         obj.root.mkdir(parents=True, exist_ok=True)
 
         if robot is not None:
@@ -396,7 +342,7 @@ class DoRobotDatasetMetadata:
 
         obj.tasks, obj.task_to_task_index = {}, {}
         obj.episodes_stats, obj.stats, obj.episodes = {}, {}, {}
-        obj.info = create_empty_dataset_info(LEROBOT_DATASET_VERSION, DOROBOT_DATASET_VERSION, fps, robot_type, features, use_videos, use_audios)
+        obj.info = create_empty_dataset_info(CODEBASE_VERSION, fps, robot_type, features, use_videos)
         if len(obj.video_keys) > 0 and not use_videos:
             raise ValueError()
         write_json(obj.info, obj.root / INFO_PATH)
@@ -404,7 +350,7 @@ class DoRobotDatasetMetadata:
         return obj
 
 
-class DoRobotDataset(torch.utils.data.Dataset):
+class LeRobotDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         repo_id: str,
@@ -430,7 +376,7 @@ class DoRobotDataset(torch.utils.data.Dataset):
             - On the Hugging Face Hub at the address https://huggingface.co/datasets/{repo_id} and not on
               your local disk in the 'root' folder. Instantiating this class with this 'repo_id' will download
               the dataset from that address and load it, pending your dataset is compliant with
-              DOROBOT_DATASET_VERSION v2.0. If your dataset has been created before this new format, you will be
+              codebase_version v2.0. If your dataset has been created before this new format, you will be
               prompted to convert it using our conversion script from v1.6 to v2.0, which you can find at
               lerobot/common/datasets/v2/convert_dataset_v1_to_v2.py.
 
@@ -521,23 +467,23 @@ class DoRobotDataset(torch.utils.data.Dataset):
         """
         super().__init__()
         self.repo_id = repo_id
-        self.root = Path(root) if root else DOROBOT_DATASET / repo_id
+        self.root = Path(root) if root else HF_LEROBOT_HOME / repo_id
         self.image_transforms = image_transforms
         self.delta_timestamps = delta_timestamps
         self.episodes = episodes
         self.tolerance_s = tolerance_s
-        self.revision = revision if revision else DOROBOT_DATASET_VERSION
+        self.revision = revision if revision else CODEBASE_VERSION
         self.video_backend = video_backend if video_backend else "pyav"
         self.delta_indices = None
 
+        # Unused attributes
         self.image_writer = None
-        self.audio_writer = None
         self.episode_buffer = None
 
         self.root.mkdir(exist_ok=True, parents=True)
 
         # Load metadata
-        self.meta = DoRobotDatasetMetadata(
+        self.meta = LeRobotDatasetMetadata(
             self.repo_id, self.root, self.revision, force_cache_sync=force_cache_sync
         )
         if self.episodes is not None and self.meta._version >= packaging.version.parse("v2.1"):
@@ -621,8 +567,8 @@ class DoRobotDataset(torch.utils.data.Dataset):
 
         if tag_version:
             with contextlib.suppress(RevisionNotFoundError):
-                hub_api.delete_tag(self.repo_id, tag=DOROBOT_DATASET_VERSION, repo_type="dataset")
-            hub_api.create_tag(self.repo_id, tag=DOROBOT_DATASET_VERSION, revision=branch, repo_type="dataset")
+                hub_api.delete_tag(self.repo_id, tag=CODEBASE_VERSION, repo_type="dataset")
+            hub_api.create_tag(self.repo_id, tag=CODEBASE_VERSION, revision=branch, repo_type="dataset")
 
     def pull_from_repo(
         self,
@@ -830,19 +776,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
         fpath = DEFAULT_IMAGE_PATH.format(
             image_key=image_key, episode_index=episode_index, frame_index=frame_index
         )
-
-        return self.root / fpath
-    # 修改部分
-    def _get_image_file_path(self, episode_index: int, image_key: str, frame_index: int) -> Path:
-        # 检查key是否包含深度图标识
-        is_depth_key = "depth" in image_key.lower()  # 或其他命名规则
-        template = DEFAULT_IMAGE_PATH_DEPTH if is_depth_key else DEFAULT_IMAGE_PATH
-        
-        fpath = template.format(
-            image_key=image_key, 
-            episode_index=episode_index, 
-            frame_index=frame_index
-        )
         return self.root / fpath
 
     def _save_image(self, image: torch.Tensor | np.ndarray | PIL.Image.Image, fpath: Path) -> None:
@@ -900,7 +833,7 @@ class DoRobotDataset(torch.utils.data.Dataset):
 
         self.episode_buffer["size"] += 1
 
-    def save_episode(self, episode_data: dict | None = None) -> int:
+    def save_episode(self, episode_data: dict | None = None) -> None:
         """
         This will save to disk the current episode in self.episode_buffer.
 
@@ -935,16 +868,14 @@ class DoRobotDataset(torch.utils.data.Dataset):
         for key, ft in self.features.items():
             # index, episode_index, task_index are already processed above, and image and video
             # are processed separately by storing image path and frame info as meta data
-            if key in ["index", "episode_index", "task_index"] or ft["dtype"] in ["image", "video", "audio"]:
+            if key in ["index", "episode_index", "task_index"] or ft["dtype"] in ["image", "video"]:
                 continue
             episode_buffer[key] = np.stack(episode_buffer[key])
-
-        self.stop_audio_writer()
-        self.wait_audio_writer()
 
         self._wait_image_writer()
         self._save_episode_table(episode_buffer, episode_index)
         ep_stats = compute_episode_stats(episode_buffer, self.features)
+
         if len(self.meta.video_keys) > 0:
             video_paths = self.encode_episode_videos(episode_index)
             for key in self.meta.video_keys:
@@ -963,101 +894,19 @@ class DoRobotDataset(torch.utils.data.Dataset):
             self.tolerance_s,
         )
 
-        if len(self.meta.video_keys) > 0:
-            video_files = list(self.root.rglob("*.mp4"))
-            assert len(video_files) == self.num_episodes * len(self.meta.video_keys)
+        video_files = list(self.root.rglob("*.mp4"))
+        assert len(video_files) == self.num_episodes * len(self.meta.video_keys)
 
         parquet_files = list(self.root.rglob("*.parquet"))
         assert len(parquet_files) == self.num_episodes
 
         # delete images
-        if len(self.meta.video_keys) > 0:
-            for key in self.meta.video_keys:
-                img_dir = self._get_image_file_path(
-                    episode_index=episode_index, image_key=key, frame_index=0
-                ).parent
-                if img_dir.is_dir():
-                    shutil.rmtree(img_dir)
-
+        img_dir = self.root / "images"
+        if img_dir.is_dir():
+            shutil.rmtree(self.root / "images")
 
         if not episode_data:  # Reset the buffer
             self.episode_buffer = self.create_episode_buffer()
-
-        return episode_index
-
-    def remove_episode(self, ep_idx: int):
-        print(f"[DEBUG] 开始删除剧集: ep_idx={ep_idx}")
-        
-        if ep_idx == 0 and self.meta.total_episodes == 1:
-            print(f"[WARNING] dorobot_dataset.py remove_episode(): 检测到 ep_idx=0，即将删除整个目录树: {self.root}")
-            shutil.rmtree(self.root)
-            print(f"[INFO] 目录树 {self.root} 已删除")
-            return
-
-        # 处理视频文件
-        if len(self.meta.video_keys) > 0:
-            print(f"[INFO] 正在处理视频文件 (keys: {self.meta.video_keys})")
-            for key in self.meta.video_keys:
-                video_path = self.root / self.meta.get_video_file_path(ep_idx, key)
-                if os.path.isfile(video_path):
-                    print(f"[DEBUG] 删除视频文件: {video_path}")
-                    os.remove(video_path)
-                    # 验证删除结果
-                    if not os.path.exists(video_path):
-                        print(f"[SUCCESS] 成功删除视频文件: {video_path}")
-                    else:
-                        print(f"[ERROR] 删除失败！文件仍存在: {video_path}")
-                else:
-                    print(f"[SKIP] 视频文件不存在，跳过删除: {video_path}")
-
-        # 处理图片文件
-        if len(self.meta.image_keys) > 0:
-            print(f"[INFO] 正在处理图片文件 (keys: {self.meta.image_keys})")
-            for key in self.meta.image_keys:
-                image_dir = self.root / self._get_image_file_path(ep_idx, key, frame_index=0).parent
-                if os.path.isdir(image_dir):
-                    print(f"[DEBUG] 删除图片文件夹: {image_dir}")
-                    shutil.rmtree(image_dir)
-                    # 验证删除结果
-                    if not os.path.exists(image_dir):
-                        print(f"[SUCCESS] 成功删除图片文件夹: {image_dir}")
-                    else:
-                        print(f"[ERROR] 删除失败！图片文件夹仍存在: {image_dir}")
-                else:
-                    print(f"[SKIP] 图片文件夹不存在，跳过删除: {image_dir}")
-
-        # 处理音频文件
-        if len(self.meta.mic_keys) > 0:
-            print(f"[INFO] 正在处理音频文件 (keys: {self.meta.mic_keys})")
-            for key in self.meta.mic_keys:
-                audio_path = self.root / self.meta.get_audio_file_path(ep_idx, key)
-                if os.path.isfile(audio_path):
-                    print(f"[DEBUG] 删除音频文件: {audio_path}")
-                    os.remove(audio_path)
-                    # 验证删除结果
-                    if not os.path.exists(audio_path):
-                        print(f"[SUCCESS] 成功删除音频文件: {audio_path}")
-                    else:
-                        print(f"[ERROR] 删除失败！文件仍存在: {audio_path}")
-                else:
-                    print(f"[SKIP] 视频文件不存在，跳过删除: {audio_path}")
-
-        # 处理数据文件
-        data_path = self.root / self.meta.get_data_file_path(ep_idx)
-        if os.path.isfile(data_path):
-            print(f"[DEBUG] 删除数据文件: {data_path}")
-            os.remove(data_path)
-            if not os.path.exists(data_path):
-                print(f"[SUCCESS] 成功删除数据文件: {data_path}")
-            else:
-                print(f"[ERROR] 删除失败！文件仍存在: {data_path}")
-        else:
-            print(f"[SKIP] 数据文件不存在，跳过删除: {data_path}")
-
-        # 最后移除元数据
-        print(f"[INFO] 即将从元数据中移除 ep_idx={ep_idx}")
-        self.meta.remove_episode(ep_idx)
-        print(f"[SUCCESS] 剧集 {ep_idx} 已完全删除")
 
     def _save_episode_table(self, episode_buffer: dict, episode_index: int) -> None:
         episode_dict = {key: episode_buffer[key] for key in self.hf_features}
@@ -1071,32 +920,16 @@ class DoRobotDataset(torch.utils.data.Dataset):
 
     def clear_episode_buffer(self) -> None:
         episode_index = self.episode_buffer["episode_index"]
+        if self.image_writer is not None:
+            for cam_key in self.meta.camera_keys:
+                img_dir = self._get_image_file_path(
+                    episode_index=episode_index, image_key=cam_key, frame_index=0
+                ).parent
+                if img_dir.is_dir():
+                    shutil.rmtree(img_dir)
 
-        self.stop_audio_writer()
-        self.wait_audio_writer()
-
-        if episode_index == 0 and self.meta.total_episodes == 0:
-            print(f"[WARNING] dorobot_dataset.py clear_episode_buffer(): 检测到 ep_idx=0，即将删除整个目录树: {self.root}")
-            shutil.rmtree(self.root)
-        else:
-            if self.image_writer is not None:
-                for cam_key in self.meta.camera_keys:
-                    img_dir = self._get_image_file_path(
-                        episode_index=episode_index, image_key=cam_key, frame_index=0
-                    ).parent
-                    if img_dir.is_dir():
-                        shutil.rmtree(img_dir)
-            if self.audio_writer is not None:
-                for mic_key in self.meta.mic_keys:
-                    audio_path = self._get_audio_file_path(
-                        episode_index=episode_index, audio_key=mic_key
-                    )
-                    # 检查音频文件是否存在且是文件（而非目录）
-                    if audio_path.is_file():
-                        audio_path.unlink()  # 直接删除文件本身
-
-            # Reset the buffer
-            self.episode_buffer = self.create_episode_buffer()
+        # Reset the buffer
+        self.episode_buffer = self.create_episode_buffer()
 
     def start_image_writer(self, num_processes: int = 0, num_threads: int = 4) -> None:
         if isinstance(self.image_writer, AsyncImageWriter):
@@ -1151,48 +984,6 @@ class DoRobotDataset(torch.utils.data.Dataset):
             encode_video_frames(img_dir, video_path, self.fps, overwrite=True)
 
         return video_paths
-    
-    # def _get_audio_file_path(self, episode_index: int, audio_key: str, episode_index: int) -> Path:
-    #     fpath = DEFAULT_AUDIO_PATH.format(
-    #         image_key=image_key, episode_index=episode_index, episode_index=episode_index
-    #     )
-    #     return self.root / fpath
-    
-    def start_audio_writer(self, microphones: dict[str, int]) -> None:
-        if isinstance(self.audio_writer, AsyncAudioWriter):
-            logging.warning(
-                "You are starting a new AsyncAudioWriter that is replacing an already existing one in the dataset."
-            )
-
-        episode_index = self.meta.total_episodes
-        # 1. 创建路径字典：为每个麦克风生成独立的音频文件路径
-        audio_paths = {
-            key: self.root / self.meta.get_audio_file_path(episode_index, key)
-            for key in self.meta.mic_keys
-        }
-
-        # 2. 将路径字典传递给 AsyncAudioWriter
-        self.audio_writer = AsyncAudioWriter(
-            microphones=microphones,
-            savepath=audio_paths,  # 传入字典而非单个路径
-        )
-
-        self.audio_writer.start()  # 启动音频写入器
-
-    def stop_audio_writer(self) -> None:
-        """
-        Whenever wrapping this dataset inside a parallelized DataLoader, this needs to be called first to
-        remove the image_writer in order for the LeRobotDataset object to be pickleable and parallelized.
-        """
-        if self.audio_writer is not None:
-            self.audio_writer.stop()
-            
-
-    def wait_audio_writer(self) -> None:
-        """Wait for asynchronous image writer to finish."""
-        if self.audio_writer is not None:
-            self.audio_writer.wait_until_done()
-            # self.audio_writer = None
 
     @classmethod
     def create(
@@ -1204,15 +995,14 @@ class DoRobotDataset(torch.utils.data.Dataset):
         robot_type: str | None = None,
         features: dict | None = None,
         use_videos: bool = True,
-        use_audios: bool = False,
         tolerance_s: float = 1e-4,
         image_writer_processes: int = 0,
         image_writer_threads: int = 0,
         video_backend: str | None = None,
-    ) -> "DoRobotDataset":
+    ) -> "LeRobotDataset":
         """Create a LeRobot Dataset from scratch in order to record data."""
         obj = cls.__new__(cls)
-        obj.meta = DoRobotDatasetMetadata.create(
+        obj.meta = LeRobotDatasetMetadata.create(
             repo_id=repo_id,
             fps=fps,
             root=root,
@@ -1220,18 +1010,15 @@ class DoRobotDataset(torch.utils.data.Dataset):
             robot_type=robot_type,
             features=features,
             use_videos=use_videos,
-            use_audios=use_audios,
         )
         obj.repo_id = obj.meta.repo_id
         obj.root = obj.meta.root
         obj.revision = None
         obj.tolerance_s = tolerance_s
         obj.image_writer = None
-        obj.audio_writer = None
+
         if image_writer_processes or image_writer_threads:
             obj.start_image_writer(image_writer_processes, image_writer_threads)
-        if len(robot.microphones) > 0:
-            obj.start_audio_writer(robot.microphones)
 
         # TODO(aliberts, rcadene, alexander-soare): Merge this with OnlineBuffer/DataBuffer
         obj.episode_buffer = obj.create_episode_buffer()
@@ -1244,3 +1031,188 @@ class DoRobotDataset(torch.utils.data.Dataset):
         obj.episode_data_index = None
         obj.video_backend = video_backend if video_backend is not None else "pyav"
         return obj
+
+
+class MultiLeRobotDataset(torch.utils.data.Dataset):
+    """A dataset consisting of multiple underlying `LeRobotDataset`s.
+
+    The underlying `LeRobotDataset`s are effectively concatenated, and this class adopts much of the API
+    structure of `LeRobotDataset`.
+    """
+
+    def __init__(
+        self,
+        repo_ids: list[str],
+        root: str | Path | None = None,
+        episodes: dict | None = None,
+        image_transforms: Callable | None = None,
+        delta_timestamps: dict[list[float]] | None = None,
+        tolerances_s: dict | None = None,
+        download_videos: bool = True,
+        video_backend: str | None = None,
+    ):
+        super().__init__()
+        self.repo_ids = repo_ids
+        self.root = Path(root) if root else HF_LEROBOT_HOME
+        self.tolerances_s = tolerances_s if tolerances_s else {repo_id: 1e-4 for repo_id in repo_ids}
+        # Construct the underlying datasets passing everything but `transform` and `delta_timestamps` which
+        # are handled by this class.
+        self._datasets = [
+            LeRobotDataset(
+                repo_id,
+                root=self.root / repo_id,
+                episodes=episodes[repo_id] if episodes else None,
+                image_transforms=image_transforms,
+                delta_timestamps=delta_timestamps,
+                tolerance_s=self.tolerances_s[repo_id],
+                download_videos=download_videos,
+                video_backend=video_backend,
+            )
+            for repo_id in repo_ids
+        ]
+
+        # Disable any data keys that are not common across all of the datasets. Note: we may relax this
+        # restriction in future iterations of this class. For now, this is necessary at least for being able
+        # to use PyTorch's default DataLoader collate function.
+        self.disabled_features = set()
+        intersection_features = set(self._datasets[0].features)
+        for ds in self._datasets:
+            intersection_features.intersection_update(ds.features)
+        if len(intersection_features) == 0:
+            raise RuntimeError(
+                "Multiple datasets were provided but they had no keys common to all of them. "
+                "The multi-dataset functionality currently only keeps common keys."
+            )
+        for repo_id, ds in zip(self.repo_ids, self._datasets, strict=True):
+            extra_keys = set(ds.features).difference(intersection_features)
+            logging.warning(
+                f"keys {extra_keys} of {repo_id} were disabled as they are not contained in all the "
+                "other datasets."
+            )
+            self.disabled_features.update(extra_keys)
+
+        self.image_transforms = image_transforms
+        self.delta_timestamps = delta_timestamps
+        # TODO(rcadene, aliberts): We should not perform this aggregation for datasets
+        # with multiple robots of different ranges. Instead we should have one normalization
+        # per robot.
+        self.stats = aggregate_stats([dataset.meta.stats for dataset in self._datasets])
+
+    @property
+    def repo_id_to_index(self):
+        """Return a mapping from dataset repo_id to a dataset index automatically created by this class.
+
+        This index is incorporated as a data key in the dictionary returned by `__getitem__`.
+        """
+        return {repo_id: i for i, repo_id in enumerate(self.repo_ids)}
+
+    @property
+    def repo_index_to_id(self):
+        """Return the inverse mapping if repo_id_to_index."""
+        return {v: k for k, v in self.repo_id_to_index}
+
+    @property
+    def fps(self) -> int:
+        """Frames per second used during data collection.
+
+        NOTE: Fow now, this relies on a check in __init__ to make sure all sub-datasets have the same info.
+        """
+        return self._datasets[0].meta.info["fps"]
+
+    @property
+    def video(self) -> bool:
+        """Returns True if this dataset loads video frames from mp4 files.
+
+        Returns False if it only loads images from png files.
+
+        NOTE: Fow now, this relies on a check in __init__ to make sure all sub-datasets have the same info.
+        """
+        return self._datasets[0].meta.info.get("video", False)
+
+    @property
+    def features(self) -> datasets.Features:
+        features = {}
+        for dataset in self._datasets:
+            features.update({k: v for k, v in dataset.hf_features.items() if k not in self.disabled_features})
+        return features
+
+    @property
+    def camera_keys(self) -> list[str]:
+        """Keys to access image and video stream from cameras."""
+        keys = []
+        for key, feats in self.features.items():
+            if isinstance(feats, (datasets.Image, VideoFrame)):
+                keys.append(key)
+        return keys
+
+    @property
+    def video_frame_keys(self) -> list[str]:
+        """Keys to access video frames that requires to be decoded into images.
+
+        Note: It is empty if the dataset contains images only,
+        or equal to `self.cameras` if the dataset contains videos only,
+        or can even be a subset of `self.cameras` in a case of a mixed image/video dataset.
+        """
+        video_frame_keys = []
+        for key, feats in self.features.items():
+            if isinstance(feats, VideoFrame):
+                video_frame_keys.append(key)
+        return video_frame_keys
+
+    @property
+    def num_frames(self) -> int:
+        """Number of samples/frames."""
+        return sum(d.num_frames for d in self._datasets)
+
+    @property
+    def num_episodes(self) -> int:
+        """Number of episodes."""
+        return sum(d.num_episodes for d in self._datasets)
+
+    @property
+    def tolerance_s(self) -> float:
+        """Tolerance in seconds used to discard loaded frames when their timestamps
+        are not close enough from the requested frames. It is only used when `delta_timestamps`
+        is provided or when loading video frames from mp4 files.
+        """
+        # 1e-4 to account for possible numerical error
+        return 1 / self.fps - 1e-4
+
+    def __len__(self):
+        return self.num_frames
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+        if idx >= len(self):
+            raise IndexError(f"Index {idx} out of bounds.")
+        # Determine which dataset to get an item from based on the index.
+        start_idx = 0
+        dataset_idx = 0
+        for dataset in self._datasets:
+            if idx >= start_idx + dataset.num_frames:
+                start_idx += dataset.num_frames
+                dataset_idx += 1
+                continue
+            break
+        else:
+            raise AssertionError("We expect the loop to break out as long as the index is within bounds.")
+        item = self._datasets[dataset_idx][idx - start_idx]
+        item["dataset_index"] = torch.tensor(dataset_idx)
+        for data_key in self.disabled_features:
+            if data_key in item:
+                del item[data_key]
+
+        return item
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(\n"
+            f"  Repository IDs: '{self.repo_ids}',\n"
+            f"  Number of Samples: {self.num_frames},\n"
+            f"  Number of Episodes: {self.num_episodes},\n"
+            f"  Type: {'video (.mp4)' if self.video else 'image (.png)'},\n"
+            f"  Recorded Frames per Second: {self.fps},\n"
+            f"  Camera Keys: {self.camera_keys},\n"
+            f"  Video Frame Keys: {self.video_frame_keys if self.video else 'N/A'},\n"
+            f"  Transformations: {self.image_transforms},\n"
+            f")"
+        )

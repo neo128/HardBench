@@ -8,6 +8,7 @@ import requests
 import traceback
 import threading
 import queue
+import tempfile
 
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -16,7 +17,7 @@ from deepdiff import DeepDiff
 from functools import cache
 from termcolor import colored
 from datetime import datetime
-
+import subprocess
 
 # from operating_platform.policy.config import PreTrainedConfig
 from operating_platform.robot.robots.configs import RobotConfig
@@ -25,15 +26,17 @@ from operating_platform.utils import parser
 from operating_platform.utils.utils import has_method, init_logging, log_say, get_current_git_branch, git_branch_log, get_container_ip_from_hosts
 from operating_platform.utils.data_file import find_epindex_from_dataid_json
 
+from operating_platform.utils.data_file import check_disk_space
 from operating_platform.utils.constants import DOROBOT_DATASET
 from operating_platform.dataset.dorobot_dataset import *
 from operating_platform.dataset.visual.visual_dataset import visualize_dataset
-
+from operating_platform.dataset.visual.visualize_dataset_html import visualize_dataset_html
 # from operating_platform.core._client import Coordinator
 from operating_platform.core.daemon import Daemon
 from operating_platform.core.record import Record, RecordConfig
 from operating_platform.core.replay import DatasetReplayConfig, ReplayConfig, replay
 
+import asyncio, aiohttp
 DEFAULT_FPS = 30
 RERUN_WEB_PORT = 9195
 RERUN_WS_PORT = 9285
@@ -112,6 +115,7 @@ def cameras_to_stream_json(cameras: dict[str, int]):
         str: 格式化的 JSON 字符串
     """
     stream_list = [{"id": cam_id, "name": name} for name, cam_id in cameras.items()]
+    # 修改depth
     result = {
         "total": len(stream_list),
         "streams": stream_list
@@ -121,26 +125,22 @@ def cameras_to_stream_json(cameras: dict[str, int]):
 class Coordinator:
     def __init__(self, daemon: Daemon, server_url="http://localhost:8088"):
         self.server_url = server_url
-        self.sio = socketio.Client()
-        self.session = requests.Session()
-
+        # 1. 换成异步客户端
+        self.sio = socketio.AsyncClient()
+        self.session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(limit=10, limit_per_host=10)
+        )
         self.daemon = daemon
-
         self.running = False
         self.last_heartbeat_time = 0
-        self.heartbeat_interval = 2  # 心跳间隔(秒)
-
+        self.heartbeat_interval = 2
         self.recording = False
-        self.saveing = False
         self.replaying = False
+        self.saveing = False
 
+        self.cameras = {"image_top": 1, "image_right": 2}
 
-        self.cameras: dict[str, int] = {
-            "image_top": 1,
-            "image_depth_top": 2,
-        } # Default Config
-        
-        # 注册事件处理
+        # 2. 注册异步回调
         self.sio.on('HEARTBEAT_RESPONSE', self.__on_heartbeat_response_handle)
         self.sio.on('connect', self.__on_connect_handle)
         self.sio.on('disconnect', self.__on_disconnect_handle)
@@ -149,30 +149,26 @@ class Coordinator:
         self.record = None
     
 ####################### Client Start/Stop ############################
-    def start(self):
+    async def start(self):
         """启动客户端"""
         self.running = True
-        self.sio.connect(self.server_url)
-        
-        # 启动心跳线程
-        heartbeat_thread = threading.Thread(target=self.send_heartbeat)
-        heartbeat_thread.daemon = True
-        heartbeat_thread.start()
-        
-        # print("客户端已启动，等待连接...")
+        await self.sio.connect(self.server_url)
+        # 3. 用 asyncio 任务发心跳
+        asyncio.create_task(self.send_heartbeat_loop())
+
     
-    def stop(self):
-        """停止客户端"""
+    async def stop(self):
         self.running = False
-        self.sio.disconnect()
-        print("客户端已停止")
+        await self.sio.disconnect()
+        await self.session.close()
+        print("异步客户端已停止")
     
 ####################### Client Handle ############################
-    def __on_heartbeat_response_handle(self, data):
+    async def __on_heartbeat_response_handle(self, data):
         """心跳响应回调"""
         print("收到心跳响应:", data)
     
-    def __on_connect_handle(self):
+    async def __on_connect_handle(self):
         """连接成功回调"""
         print("成功连接到服务器")
         
@@ -186,14 +182,17 @@ class Coordinator:
         # except Exception as e:
         #     print(f"初始化视频流列表失败: {e}")
     
-    def __on_disconnect_handle(self):
+    async def __on_disconnect_handle(self):
         """断开连接回调"""
         print("与服务器断开连接")
     
-    def __on_robot_command_handle(self, data):
+    async def __on_robot_command_handle(self, data):
         """收到机器人命令回调"""
         print("收到服务器命令:", data)
-        
+        global task_id
+        global task_name
+        global task_data_id
+        global repo_id
         # 根据命令类型进行响应
         if data.get('cmd') == 'video_list':
             print("处理更新视频流命令...")
@@ -210,13 +209,15 @@ class Coordinator:
             
         elif data.get('cmd') == 'start_collection':
             print("处理开始采集命令...")
+            if not check_disk_space(min_gb=2):  # 检查是否 ≥1GB
+                print("存储空间不足,小于2GB,取消采集！")
+                await self.send_response('start_collection', "存储空间不足,小于2GB")
             msg = data.get('msg')
 
             if self.replaying == True:
-                self.send_response('start_collection', "fail")
+                await self.send_response('start_collection', "fail")
                 print("Replay is running, cannot start collection.")
                 return
-
             if self.recording == True:
                 # self.send_response('start_collection', "fail")
 
@@ -224,13 +225,12 @@ class Coordinator:
                 self.record.discard()
                 self.recording = False
 
-
             self.recording = True
 
             task_id = msg.get('task_id')
             task_name = msg.get('task_name')
             task_data_id = msg.get('task_data_id')
-            countdown_seconds = int(msg.get('countdown_seconds'))
+            countdown_seconds = msg.get('countdown_seconds', 3) 
             repo_id=f"{task_name}_{task_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
@@ -245,7 +245,6 @@ class Coordinator:
                 target_dir = dataset_path / date_str / "dev" / repo_id
             else:
                 target_dir = dataset_path / date_str / "dev" / repo_id
-
 
             # 判断是否存在对应文件夹以决定是否启用恢复模式
             resume = False
@@ -264,27 +263,26 @@ class Coordinator:
             # resume 变量现在可用于后续逻辑
             print(f"Resume mode: {'Enabled' if resume else 'Disabled'}")
 
-            record_cfg = RecordConfig(fps=DEFAULT_FPS, repo_id=repo_id, video=self.daemon.robot.use_videos, resume=resume, root=target_dir)
+            record_cfg = RecordConfig(fps=DEFAULT_FPS, repo_id=repo_id, resume=resume, root=target_dir)
             self.record = Record(fps=DEFAULT_FPS, robot=self.daemon.robot, daemon=self.daemon, record_cfg = record_cfg, record_cmd=msg)
-            
             # 发送响应
-            self.send_response('start_collection', "success")
-
+            await self.send_response('start_collection', "success")
             # 开始采集倒计时
             print(f"开始采集倒计时{countdown_seconds}s...")
             time.sleep(countdown_seconds)
 
             # 开始采集
             self.record.start()
+
         
         elif data.get('cmd') == 'finish_collection':
+            # 模拟处理完成采集
             print("处理完成采集命令...")
-
             if self.replaying == True:
-                self.send_response('finish_collection', "fail")
+                await self.send_response('finish_collection', "fail")
                 print("Replay is running, cannot finish collection.")
                 return
-
+            
             if not self.saveing and self.record.save_data is None:
                 # 如果不在保存状态，立即停止记录并保存
                 self.saveing= True
@@ -292,20 +290,18 @@ class Coordinator:
                 self.record.save()
                 self.recording = False
                 self.saveing= False
-
+            
             # 如果正在保存，循环等待直到 self.record.save_data 有数据
             while self.saveing:
                 time.sleep(0.1)  # 避免CPU过载，适当延迟
-
             # 此时无论 saveing 状态如何，self.record.save_data 已有有效数据
             response_data = {
                 "msg": "success",
                 "data": self.record.save_data,
             }
-
             # 发送响应
-            self.send_response('finish_collection', response_data['msg'], response_data)
-        
+            await self.send_response('finish_collection', response_data['msg'], response_data)
+
         elif data.get('cmd') == 'discard_collection':
             # 模拟处理丢弃采集
             print("处理丢弃采集命令...")
@@ -314,53 +310,48 @@ class Coordinator:
                 self.send_response('discard_collection', "fail")
                 print("Replay is running, cannot discard collection.")
                 return
-
+            
             self.record.stop()
             self.record.discard()
             self.recording = False
 
             # 发送响应
-            self.send_response('discard_collection', "success")
-        
+            await self.send_response('discard_collection', "success")
+
         elif data.get('cmd') == 'submit_collection':
             # 模拟处理提交采集
             print("处理提交采集命令...")
             time.sleep(0.01)  # 模拟处理时间
 
             if self.replaying == True:
-                self.send_response('submit_collection', "fail")
+                await self.send_response('submit_collection', "fail")
                 print("Replay is running, cannot submit collection.")
                 return
-            
             # 发送响应
-            self.send_response('submit_collection', "success")
+            await self.send_response('submit_collection', "success")
 
         elif data.get('cmd') == 'start_replay':
             print("处理开始回放命令...")
-            msg = data.get('msg')
-  
+            # msg拿不到信息
+            # msg = data.get()
             if self.recording == True:
-                self.send_response('start_replay', "fail")
+                await self.send_response('start_replay', "fail")
                 print("Recording is running, cannot start replay.")
                 return
-            
             if self.replaying == True:
-                self.send_response('start_replay', "fail")
+                await self.send_response('start_replay', "fail")
                 print("Replay is already running.")
                 return
-            
             self.replaying = True
-
-            task_id = msg.get('task_id')
-            task_name = msg.get('task_name')
-            task_data_id = msg.get('task_data_id')
-            repo_id=f"{task_name}_{task_id}"
+            # task_id = msg.get('task_id')
+            # task_name = msg.get('task_name')
+            # task_data_id = msg.get('task_data_id')
+            # repo_id=f"{task_name}_{task_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
 
             # 构建目标目录路径
             dataset_path = DOROBOT_DATASET
-
             git_branch_name = get_current_git_branch()
             if "release" in git_branch_name:
                 target_dir = dataset_path / date_str / "user" / repo_id
@@ -372,12 +363,12 @@ class Coordinator:
             ep_index = find_epindex_from_dataid_json(target_dir, task_data_id)
             
             dataset = DoRobotDataset(repo_id, root=target_dir)
-
+       
             print(f"开始回放数据集: {repo_id}, 目标目录: {target_dir}, 任务数据ID: {task_data_id}, 回放索引: {ep_index}")
 
             replay_dataset_cfg = DatasetReplayConfig(repo_id, ep_index, target_dir, fps=DEFAULT_FPS)
             replay_cfg = ReplayConfig(self.daemon.robot, replay_dataset_cfg)
-          
+            
             # 用于线程间通信的异常队列
             error_queue = queue.Queue()
             # 用于通知replay线程停止的事件
@@ -389,7 +380,7 @@ class Coordinator:
                     # 主线程执行可视化（阻塞直到窗口关闭或超时）
                     visualize_dataset(
                         dataset,
-                        mode="distant",
+                        mode="local",
                         episode_index=ep_index,
                         web_port=RERUN_WEB_PORT,
                         ws_port=RERUN_WS_PORT,
@@ -397,7 +388,6 @@ class Coordinator:
                     )
                 except Exception as e:
                     error_queue.put(e)
-
             # 创建并启动replay线程
             visual_thread = threading.Thread(
                 target=visual_worker,
@@ -406,17 +396,17 @@ class Coordinator:
             )
             visual_thread.start()
 
-            # d_container_ip = get_container_ip_from_hosts()
             # 发送响应
             response_data = {
                 "data": {
                     "url": f"http://localhost:{RERUN_WEB_PORT}/?url=ws://localhost:{RERUN_WS_PORT}",
                 },
             }
-            self.send_response('start_replay', "success", response_data)
+            await self.send_response('start_replay', "success", response_data)
 
             try:
                 replay(replay_cfg)
+
             finally:
                 # 无论可视化是否正常结束，都通知replay线程停止
                 stop_event.set()
@@ -433,39 +423,38 @@ class Coordinator:
                     raise RuntimeError(f"Visual failed in thread: {str(error)}") from error
                 except queue.Empty:
                     pass
-                    
             self.replaying = False
             print("="*20)
             print("Replay Complete Success!")
             print("="*20)
     
 ####################### Client Send to Server ############################
-    def send_heartbeat(self):
+    async def send_heartbeat_loop(self):
         """定期发送心跳"""
         while self.running:
             current_time = time.time()
             if current_time - self.last_heartbeat_time >= self.heartbeat_interval:
                 try:
-                    self.sio.emit('HEARTBEAT')
+                    await self.sio.emit('HEARTBEAT')
                     self.last_heartbeat_time = current_time
                 except Exception as e:
                     print(f"发送心跳失败: {e}")
             time.sleep(1)
-            self.sio.wait()
+            await self.sio.wait()
+
 
     # 发送回复请求
-    def send_response(self, cmd, msg, data=None):
-        """发送回复请求到服务器"""
+    async def send_response(self, cmd, msg, data=None):
+        payload = {"cmd": cmd, "msg": msg}
+        if data:
+            payload.update(data)
         try:
-            payload = {"cmd": cmd, "msg": msg}
-            if data:
-                payload.update(data)
-            
-            response = self.session.post(
+            async with self.session.post(
                 f"{self.server_url}/robot/response",
-                json=payload
-            )
-            print(f"已发送响应 [{cmd}]: {payload}")
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=2)
+            ) as resp:
+                print(f"已发送响应 [{cmd}]: {payload}")
         except Exception as e:
             print(f"发送响应失败 [{cmd}]: {e}")
 
@@ -474,25 +463,35 @@ class Coordinator:
         self.cameras = info.copy()
         print(f"更新摄像头信息: {self.cameras}")
 
-    def update_stream_info_to_server(self):
+    async def update_stream_info_to_server(self):
         stream_info_data = cameras_to_stream_json(self.cameras)
         print(f"stream_info_data: {stream_info_data}")
-
-        response = self.session.post(
-            f"{self.server_url}/robot/stream_info",
-            json = stream_info_data,
-        )
+        try:
+            # 2. 异步post加await，确保请求发送
+            async with self.session.post(
+                f"{self.server_url}/robot/stream_info",
+                json=stream_info_data,
+                timeout=aiohttp.ClientTimeout(total=2)
+            ) as response:
+                if response.status == 200:
+                    print("摄像头流信息已同步到服务器")
+                else:
+                    print(f"同步流信息失败: {response.status}")
+        except Exception as e:
+            print(f"同步流信息异常: {e}")
 
     def update_stream(self, name, frame):
 
         _, jpeg_frame = cv2.imencode('.jpg', frame, 
                             [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        
         frame_data = jpeg_frame.tobytes()
-
         stream_id = self.cameras[name]
+        # 不在浏览器界面显示深度信息
+        if "depth" in name:
+            return
         # Build URL
         url = f"{self.server_url}/robot/update_stream/{stream_id}"
-
         # Send POST request
         try:
             response = self.session.post(url, data=frame_data)
@@ -500,6 +499,24 @@ class Coordinator:
                 print(f"Server returned error: {response.status_code}, {response.text}")
         except requests.exceptions.RequestException as e:
             print(f"Request failed: {e}")
+            
+    async def update_stream_async(self, name, frame):
+        if "depth" in name:
+            return
+        _, jpeg = cv2.imencode('.jpg', frame,
+                                [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        url = f"{self.server_url}/robot/update_stream/{self.cameras[name]}"
+        try:
+            # 超时给短一点，丢几帧对视频流影响不大
+            async with self.session.post(url, data=jpeg.tobytes(),
+                                         timeout=aiohttp.ClientTimeout(total=0.2)) as resp:
+                if resp.status != 200:
+                    txt = await resp.text()
+                    print(f"Server error {resp.status}: {txt}")
+        except asyncio.TimeoutError:
+            print("update_stream timeout")
+        except Exception as e:
+            print("update_stream exception:", e)
 
 @dataclass
 class ControlPipelineConfig:
@@ -514,50 +531,52 @@ class ControlPipelineConfig:
 
 @parser.wrap()
 def main(cfg: ControlPipelineConfig):
-
+# 让事件循环跑 async_main
+    asyncio.run(async_main(cfg))
+    
+async def async_main(cfg: ControlPipelineConfig):
+    """原来的 async 主体"""
     init_logging()
-    git_branch_log()
     logging.info(pformat(asdict(cfg)))
-
     daemon = Daemon(fps=DEFAULT_FPS)
     daemon.start(cfg.robot)
 
     coordinator = Coordinator(daemon)
-    coordinator.start()
+    await coordinator.start()
 
     coordinator.stream_info(daemon.cameras_info)
-    coordinator.update_stream_info_to_server()
+    await coordinator.update_stream_info_to_server()
 
     try:
         while True:
             daemon.update()
             observation = daemon.get_observation()
-            # print("get observation")
             if observation is not None:
-                image_keys = [key for key in observation if "image" in key]
-                for i, key in enumerate(image_keys, start=1):
-                    img = cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR) 
-
-                    name = key[len("observation.images."):]
-                    coordinator.update_stream(name, img)
-
-                    # if not is_headless():
-                    #     # print(f"will show image, name:{name}")
-                    #     cv2.imshow(name, img)
-                    #     cv2.waitKey(1)
-                    #     # print("show image succese")
-                    
+                tasks = []
+                for key in observation:
+                    if "image" in key and "depth" not in key:
+                        img = cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR)
+                        name = key[len("observation.images."):]
+                        tasks.append(
+                            coordinator.update_stream_async(name, img)
+                        )
+                if tasks:
+                    # 并发地发；只等待 0.2 s，不阻塞主循环
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.gather(*tasks, return_exceptions=True),
+                            timeout=0.2
+                        )
+                    except asyncio.TimeoutError:
+                        pass
             else:
                 print("observation is none")
-            
+            await asyncio.sleep(0)   # 让事件循环可以调度
     except KeyboardInterrupt:
         print("coordinator and daemon stop")
-
     finally:
         daemon.stop()
-        coordinator.stop()
+        await coordinator.stop()
         cv2.destroyAllWindows()
-    
-
 if __name__ == "__main__":
     main()

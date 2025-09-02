@@ -4,9 +4,14 @@
 CONTAINER_NAME="operating_platform"
 PROJECT_DIR="/root/WanX-EI-Studio"
 CONDA_ENV1="op-robot-aloha"
-CONDA_ENV2="op"
-CONDA_ENV3="dr-view-rerun"
-DATAFLOW_PATH="operating_platform/robot/robots/aloha_v1/robot_aloha_dataflow.yml"
+# read -p "请输入机器人的名称，可输入的有realman、aloha、pika: " robot_type
+
+# CONTAINER_NAME="baai-flask-server"
+# PROJECT_DIR="/root/Operating-Platform"
+# CONDA_ENV1="op-robot-$robot_type"
+# CONDA_ENV2="op"
+# CONDA_ENV3="dr-view-rerun"
+# DATAFLOW_PATH="operating_platform/robot/robots/aloha_v1/robot_aloha_dataflow.yml"
 TIMEOUT=30  # 等待超时时间（秒）
 CLEANED_UP=false
 

@@ -21,7 +21,7 @@ import cv2
 
 
 from operating_platform.robot.robots.utils import RobotDeviceNotConnectedError
-from operating_platform.robot.robots.configs import AlohaRobotConfig
+from operating_platform.robot.robots.configs import RealmanRobotConfig
 from operating_platform.robot.robots.com_configs.cameras import CameraConfig, OpenCVCameraConfig
 
 from operating_platform.robot.robots.camera import Camera
@@ -180,7 +180,7 @@ def make_cameras_from_configs(camera_configs: dict[str, CameraConfig]) -> list[C
 
 
 class AlohaManipulator:
-    def __init__(self, config: AlohaRobotConfig):
+    def __init__(self, config: RealmanRobotConfig):
         self.config = config
         self.robot_type = self.config.type
 
@@ -653,14 +653,6 @@ class AlohaManipulator:
                 "Aloha is not connected. You need to run `robot.connect()` before disconnecting."
             )
         
-        # for name in self.follower_arms:
-        #     self.follower_arms[name].disconnect()
-
-        # for name in self.leader_arms:
-        #     self.leader_arms[name].disconnect()
-
-        # for name in self.cameras:
-        #     self.cameras[name].disconnect()
 
         self.is_connected = False
         
