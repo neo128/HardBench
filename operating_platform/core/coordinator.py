@@ -332,7 +332,7 @@ class Coordinator:
 
         elif data.get('cmd') == 'start_replay':
             print("处理开始回放命令...")
-            msg = data.get()
+            msg = data.get('msg')
             if self.recording == True:
                 await self.send_response('start_replay', "fail")
                 print("Recording is running, cannot start replay.")
