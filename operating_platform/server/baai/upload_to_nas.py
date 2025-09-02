@@ -490,9 +490,9 @@ class DataUploader:
         self.local_server_request('api/upload_task_id', data)
 
     @staticmethod
-    def encode_video_frames(imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int,robot_type:str) -> bool:
+    def encode_video_frames(imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
         """
-        编码普通视频帧
+        编码普通视频帧（自动检测图片后缀）
         
         Args:
             imgs_dir (Union[Path, str]): 图像目录
@@ -507,28 +507,32 @@ class DataUploader:
             imgs_dir = Path(imgs_dir)
             video_path = Path(video_path)
             video_path.parent.mkdir(parents=True, exist_ok=True)
-            if robot_type == 'realman':
-                ffmpeg_args = OrderedDict([
-                    ("-f", "image2"),
-                    ("-r", str(fps)),
-                    ("-i", str(imgs_dir / "frame_%06d.jpg")),
-                    ("-vcodec", "libx264"),
-                    ("-pix_fmt", "yuv420p"),
-                    ("-g", "5"),
-                    ("-crf", "18"),
-                    ("-loglevel", "error"),
-                ])
-            else:
-                 ffmpeg_args = OrderedDict([
-                    ("-f", "image2"),
-                    ("-r", str(fps)),
-                    ("-i", str(imgs_dir / "frame_%06d.png")),
-                    ("-vcodec", "libx264"),
-                    ("-pix_fmt", "yuv420p"),
-                    ("-g", "5"),
-                    ("-crf", "18"),
-                    ("-loglevel", "error"),
-                ])
+            
+            # 自动检测图片后缀
+            supported_extensions = ['.jpg', '.jpeg', '.png']
+            detected_ext = None
+            for ext in supported_extensions:
+                if list(imgs_dir.glob(f"*{ext}")):  # 检查是否存在该扩展名的文件
+                    detected_ext = ext
+                    break
+            
+            if not detected_ext:
+                raise ValueError(f"在 {imgs_dir} 中未找到支持的图片文件（支持的后缀: {', '.join(supported_extensions)}）")
+            
+            print(f"[DEBUG] 检测到图片后缀: {detected_ext}")
+            
+            # 构建FFmpeg参数
+            ffmpeg_args = OrderedDict([
+                ("-f", "image2"),
+                ("-r", str(fps)),
+                ("-i", str(imgs_dir / f"frame_%06d{detected_ext}")),
+                ("-vcodec", "libx264"),
+                ("-pix_fmt", "yuv420p"),
+                ("-g", "5"),
+                ("-crf", "18"),
+                ("-loglevel", "error"),
+            ])
+            
             ffmpeg_cmd = ["ffmpeg"] + [item for pair in ffmpeg_args.items() for item in pair] + [str(video_path)]
             print(f"[DEBUG] 执行FFmpeg命令: {' '.join(ffmpeg_cmd)}")
             
@@ -544,7 +548,7 @@ class DataUploader:
             return False
 
     @staticmethod
-    def encode_label_video_frames(imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int,robot_type:str) -> bool:
+    def encode_label_video_frames(imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
         """
         编码普通视频帧
         
@@ -561,29 +565,30 @@ class DataUploader:
             imgs_dir = Path(imgs_dir)
             video_path = Path(video_path)
             video_path.parent.mkdir(parents=True, exist_ok=True)
-            #  ("-vcodec", "libx264"),
-            if robot_type == 'realman':
-                ffmpeg_args = OrderedDict([
-                    ("-f", "image2"),
-                    ("-r", str(fps)),
-                    ("-i", str(imgs_dir / "frame_%06d.jpg")),
-                    ("-vcodec", "libx264"),
-                    ("-pix_fmt", "yuv420p"),
-                    ("-g", "20"),
-                    ("-crf", "23"),
-                    ("-loglevel", "error"),
-                ])
-            else:
-                ffmpeg_args = OrderedDict([
-                    ("-f", "image2"),
-                    ("-r", str(fps)),
-                    ("-i", str(imgs_dir / "frame_%06d.png")),
-                    ("-vcodec", "libx264"),
-                    ("-pix_fmt", "yuv420p"),
-                    ("-g", "20"),
-                    ("-crf", "23"),
-                    ("-loglevel", "error"),
-                ])
+            
+            # 自动检测图片后缀
+            supported_extensions = ['.jpg', '.jpeg', '.png']
+            detected_ext = None
+            for ext in supported_extensions:
+                if list(imgs_dir.glob(f"*{ext}")):  # 检查是否存在该扩展名的文件
+                    detected_ext = ext
+                    break
+            
+            if not detected_ext:
+                raise ValueError(f"在 {imgs_dir} 中未找到支持的图片文件（支持的后缀: {', '.join(supported_extensions)}）")
+            
+            print(f"[DEBUG] 检测到图片后缀: {detected_ext}")
+
+            ffmpeg_args = OrderedDict([
+                ("-f", "image2"),
+                ("-r", str(fps)),
+                ("-i", str(imgs_dir / f"frame_%06d{detected_ext}")),
+                ("-vcodec", "libx264"),
+                ("-pix_fmt", "yuv420p"),
+                ("-g", "20"),
+                ("-crf", "23"),
+                ("-loglevel", "error"),
+            ])
 
             ffmpeg_cmd = ["ffmpeg"] + [item for pair in ffmpeg_args.items() for item in pair] + [str(video_path)]
             print(f"[DEBUG] 执行FFmpeg命令: {' '.join(ffmpeg_cmd)}")
@@ -865,12 +870,12 @@ class DataUploader:
                             if img_list:
                                 for img_path, video_path in zip(img_list, video_list):
                                     print(f"[INFO] 处理普通图像avi: {img_path} -> {video_path}")
-                                    if not self.encode_video_frames(img_path, video_path, fps, self.robot_type):
+                                    if not self.encode_video_frames(img_path, video_path, fps):
                                         ffmpeg_encode_flag = False
                                         
                                 for img_path, label_video_path in zip(img_list, label_video_path_list):
                                     print(f"[INFO] 处理普通图像mp4: {img_path} -> {label_video_path}")
-                                    if not self.encode_label_video_frames(img_path, label_video_path, fps, self.robot_type):
+                                    if not self.encode_label_video_frames(img_path, label_video_path, fps):
                                         ffmpeg_encode_flag = False
                 if ffmpeg_encode_flag:
                     self.delete_directory(os.path.join(each_task_path, 'images'))
@@ -957,12 +962,12 @@ class DataUploader:
                             if img_list:
                                 for img_path, video_path in zip(img_list, video_list):
                                     print(f"[INFO] 处理普通图像avi: {img_path} -> {video_path}")
-                                    if not self.encode_video_frames(img_path, video_path, fps, self.robot_type):
+                                    if not self.encode_video_frames(img_path, video_path, fps):
                                         ffmpeg_encode_flag = False
                                         
                                 for img_path, label_video_path in zip(img_list, label_video_path_list):
                                     print(f"[INFO] 处理普通图像mp4: {img_path} -> {label_video_path}")
-                                    if not self.encode_label_video_frames(img_path, label_video_path, fps, self.robot_type):
+                                    if not self.encode_label_video_frames(img_path, label_video_path, fps):
                                         ffmpeg_encode_flag = False
                 if ffmpeg_encode_flag:
                     self.delete_directory(os.path.join(each_task_path, 'images'))

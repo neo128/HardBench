@@ -198,12 +198,12 @@ def validate_frame_count(df, img_files):
     return True, None
 
 
-def validate_session(dir, session_id, 
+def validate_session(_dir, session_id, 
                     episodes_stats="episodes_stats.jsonl", 
                     info_json="info.json",
                     image_sample_interval=30,
                     image_change_threshold=0.98,
-                    threshold_percentage=0.1):
+                    threshold_percentage=0.3):
     """验证单个会话的数据，返回结构化验证结果"""
     print(f"正在验证会话: {session_id}")
     
@@ -217,9 +217,9 @@ def validate_session(dir, session_id,
         "file_integrity_comment": ""
     }
     
-    data_dir = Path(os.path.join(dir,"data"))
-    images_dir = Path(os.path.join(dir,"images"))
-    meta_dir = Path(os.path.join(dir,"meta"))
+    data_dir = Path(os.path.join(_dir,"data"))
+    images_dir = Path(os.path.join(_dir,"images"))
+    meta_dir = Path(os.path.join(_dir,"meta"))
     
     # 解析episode_id
     try:
