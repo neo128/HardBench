@@ -231,7 +231,7 @@ class Coordinator:
             task_name = msg.get('task_name')
             task_data_id = msg.get('task_data_id')
             countdown_seconds = msg.get('countdown_seconds', 3) 
-            repo_id=f"{task_name}_{task_id}"
+            repo_id=f"{task_name}_{task_id}_{task_data_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
 
@@ -346,7 +346,7 @@ class Coordinator:
             task_id = msg.get('task_id')
             task_name = msg.get('task_name')
             task_data_id = msg.get('task_data_id')
-            repo_id=f"{task_name}_{task_id}"
+            repo_id=f"{task_name}_{task_id}_{task_data_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
 
