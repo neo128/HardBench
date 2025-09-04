@@ -82,11 +82,11 @@ nodes:
     path: ../dora_zeromq.py
     inputs: 
       image_top: camera_top/image
-      # image_depth_top: camera_top/image_depth
+      image_depth_top: camera_top/image_depth
       image_right: camera_right/image
-      # image_depth_right: camera_right/image_depth
+      image_depth_right: camera_right/image_depth
       image_left: camera_left/image
-      # image_depth_left: camera_left/image_depth
+      image_depth_left: camera_left/image_depth
       master_jointstate_right: piper_right/master_jointstate
       master_jointstate_left: piper_left/master_jointstate
       # master_endpose_right: piper_right/master_endpose
