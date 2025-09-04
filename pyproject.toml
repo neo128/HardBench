@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hardbench"
+version = "0.1.0"
+description = "HardBench: Robot hardware diagnostics for robots across Linux/Windows/macOS"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [{name = "Robot QA", email = "qa@example.com"}]
+license = {text = "Proprietary or TBD"}
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Environment :: Console",
+  "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Homepage = "https://github.com/neo128/HardBench"
+Repository = "https://github.com/neo128/HardBench"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+hardbench = "robot_diag.cli:main"
+robot-diag = "robot_diag.cli:main"
