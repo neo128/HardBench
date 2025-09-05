@@ -66,10 +66,15 @@ def evaluate(results: Dict[str, Any]) -> Dict[str, Any]:
     if m:
         w = m.get("fill_MBps")
         r = m.get("read_MBps")
+        # adapt read threshold if using python mode
+        eff_read_min = th["mem_min_read_MBps"]
+        mode_eff = (m.get("mode_effective") or "").lower()
+        if mode_eff == "python":
+            eff_read_min = min(eff_read_min, 400.0)
         if isinstance(w, (int, float)) and w < th["mem_min_write_MBps"]:
             failures.append(f"Memory write bandwidth {w:.0f} < {th['mem_min_write_MBps']:.0f} MB/s")
-        if isinstance(r, (int, float)) and r < th["mem_min_read_MBps"]:
-            failures.append(f"Memory read bandwidth {r:.0f} < {th['mem_min_read_MBps']:.0f} MB/s")
+        if isinstance(r, (int, float)) and r < eff_read_min:
+            failures.append(f"Memory read bandwidth {r:.0f} < {eff_read_min:.0f} MB/s")
 
     # CPU
     c = results.get("cpu", {}).get("stress", {})

@@ -60,15 +60,29 @@ def nvidia_sample(duration_sec: int = 10, interval: float = 1.0) -> Dict[str, An
             for line in out.splitlines():
                 fields = [x.strip() for x in line.split(",")]
                 if len(fields) >= 8:
+                    ts, idx, name, temp, util, clk_gr, clk_mem, pwr = fields[:8]
+                    # Normalize numeric fields where possible
+                    try:
+                        idx_i = int(idx)
+                    except Exception:
+                        idx_i = idx  # keep raw if not int
+                    def to_float(x: str):
+                        try:
+                            return float(x)
+                        except Exception:
+                            try:
+                                return float(x.strip().strip("%"))
+                            except Exception:
+                                return x
                     samples.append({
-                        "timestamp": fields[0],
-                        "index": fields[1],
-                        "name": fields[2],
-                        "tempC": fields[3],
-                        "util": fields[4],
-                        "clock_gr": fields[5],
-                        "clock_mem": fields[6],
-                        "powerW": fields[7],
+                        "timestamp": ts,
+                        "index": idx_i,
+                        "name": name,
+                        "tempC": to_float(temp),
+                        "util": to_float(util),
+                        "clock_gr": to_float(clk_gr),
+                        "clock_mem": to_float(clk_mem),
+                        "powerW": to_float(pwr),
                     })
         time.sleep(interval)
     return {"supported": True, "samples": samples}

@@ -58,7 +58,8 @@ def run_all(args: argparse.Namespace) -> Dict[str, Any]:
         results["disk"]["usb_storage"] = disk.usb_storage_overview()
 
     if args.mem or args.all:
-        results["mem"]["bandwidth"] = mem.mem_bandwidth(size_mb=min(args.size_mb, 1024), passes=2)
+        # memory bandwidth with optional mode override
+        results["mem"]["bandwidth"] = mem.mem_bandwidth(size_mb=min(args.size_mb, 1024), passes=2, mode=getattr(args, "mem_mode", "auto"))
 
     if args.cpu or args.all:
         results["cpu"]["stress"] = cpu.stress(duration_sec=max(5, args.duration))
@@ -105,16 +106,27 @@ def main():
     # Random I/O options
     runp.add_argument("--no-rand-io", dest="rand_io", action="store_false", help="Disable random I/O test")
     runp.add_argument("--rand-block-kb", type=int, default=4, help="Random I/O block size (KB)")
+    # Memory options
+    runp.add_argument("--mem-mode", choices=["auto", "python", "numpy"], default="auto", help="Memory read mode: auto, python, or numpy")
     # UVC camera options
     runp.add_argument("--uvc", action="store_true", help="Run UVC camera test (OpenCV if available)")
     runp.add_argument("--uvc-index", type=int, default=0, help="Camera index for UVC test")
     runp.add_argument("--uvc-duration", type=int, default=10, help="Duration for UVC test (s)")
     runp.add_argument("--uvc-target-fps", type=int, default=0, help="Expected camera FPS (0 to ignore)")
 
+    # report subcommand
+    reportp = sub.add_parser("report", help="Generate Markdown from report JSON(s)")
+    reportp.add_argument("--input", nargs="+", required=True, help="Input JSON report files")
+    reportp.add_argument("--output", required=True, help="Output Markdown file path")
+
     args = parser.parse_args()
     if args.cmd == "run":
         results = run_all(args)
         print(json.dumps(results, indent=2, ensure_ascii=False))
+    elif args.cmd == "report":
+        from .report_md import generate_md
+        path = generate_md(args.input, args.output)
+        print(f"Wrote markdown: {path}")
     else:
         parser.print_help()
 

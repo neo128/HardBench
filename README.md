@@ -67,6 +67,13 @@ USB 摄像头专测（UVC）：
 - Linux/macOS：`PYTHONPATH=src python3 -m robot_diag.cli run --disk --duration 5 --size-mb 64 --disk-path /tmp --rand-block-kb 4`
 - Windows：`$env:PYTHONPATH="src"; python -m robot_diag.cli run --disk --duration 5 --size-mb 64 --disk-path C:\\Temp --rand-block-kb 4`
 
+内存测试选项：
+- 读校验模式通过 `--mem-mode` 控制：`auto`（默认，若安装 NumPy 则自动使用）、`python`（纯 Python C 级聚合）、`numpy`（需安装 NumPy）。
+- 示例：
+  - Linux/macOS：`PYTHONPATH=src python3 -m robot_diag.cli run --mem --size-mb 512 --mem-mode auto`
+  - Windows：`$env:PYTHONPATH="src"; python -m robot_diag.cli run --mem --size-mb 512 --mem-mode numpy`
+  - 若选择 `numpy` 但未安装，将自动回退为 `python` 模式。
+
 注意事项与局限：
 - USB 供电电压/电流原始数据通常难以通过通用接口直接读取；本工具通过 sysfs 状态（Linux）、设备枚举与掉线等间接指标辅助判断。
 - 磁盘测试默认生成临时测试文件，避免覆盖业务数据；读写后自动清理。

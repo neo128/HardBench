@@ -118,10 +118,14 @@ def cpu_freqs() -> Dict[str, Any]:
 
 
 def run_powershell(ps: str, timeout: int = 15) -> Tuple[int, str, str]:
-    """Run a PowerShell command string on Windows."""
-    exe = "powershell" if shutil.which("powershell") else "pwsh"
+    """Run a PowerShell command on Windows.
+
+    Chooses the first available executable among "powershell" and "pwsh".
+    Returns (code, stdout, stderr). If neither is available, returns an error.
+    """
+    exe = shutil.which("powershell") or shutil.which("pwsh")
     if not exe:
-        return 1, "", "no powershell"
+        return 1, "", "PowerShell executable not found (powershell/pwsh)"
     try:
         proc = subprocess.run(
             [exe, "-NoProfile", "-Command", ps],

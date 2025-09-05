@@ -9,9 +9,14 @@ from .utils import human_bytes, is_windows, is_linux, run_cmd, run_powershell, w
 def _device_info(path: str) -> Dict[str, Any]:
     info: Dict[str, Any] = {"path": path}
     if is_windows():
-        # Derive drive letter from path
-        drive = (path[:1] if ":" not in path else path[:1]).upper()
-        if not drive.isalpha():
+        # Derive drive letter from path robustly
+        try:
+            abs_path = os.path.abspath(path)
+            drive_str, _ = os.path.splitdrive(abs_path)
+            drive = drive_str.rstrip(":").upper()[:1] if drive_str else ""
+        except Exception:
+            drive = ""
+        if not drive or not drive.isalpha():
             drive = "C"
         # Volume info
         code, out, err = run_powershell(
@@ -134,7 +139,8 @@ def random_io_test(dir_path: str, file_size_mb: int = 64, duration_sec: int = 5,
     os.makedirs(dir_path, exist_ok=True)
     target = os.path.join(dir_path, ".diag_rand_io.tmp")
     size_bytes = file_size_mb * 1024 * 1024
-    block_bytes = block_kb * 1024
+    block_bytes = max(1, block_kb * 1024)
+    size_bytes = max(block_bytes, size_bytes)  # ensure at least one block fits
     result: Dict[str, Any] = {
         "path": target,
         "file_size_mb": file_size_mb,
@@ -165,7 +171,8 @@ def random_io_test(dir_path: str, file_size_mb: int = 64, duration_sec: int = 5,
         with open(target, "r+b", buffering=0) as f:
             end_t = time.time() + duration_sec
             while time.time() < end_t:
-                off = random.randrange(0, size_bytes // block_bytes) * block_bytes
+                blocks = max(1, size_bytes // block_bytes)
+                off = random.randrange(0, blocks) * block_bytes
                 # read
                 t0 = time.time()
                 f.seek(off)
@@ -193,8 +200,10 @@ def random_io_test(dir_path: str, file_size_mb: int = 64, duration_sec: int = 5,
             return {"ops": 0}
         lat_ms = [x * 1000.0 for x in latencies]
         lat_ms.sort()
-        p50 = lat_ms[len(lat_ms)//2]
-        p95 = lat_ms[int(len(lat_ms) * 0.95) - 1]
+        n = len(lat_ms)
+        p50 = lat_ms[n // 2]
+        idx95 = max(0, min(n - 1, int(0.95 * n) - 1))
+        p95 = lat_ms[idx95]
         ops = len(latencies)
         iops = ops / max(1e-9, duration_sec)
         return {"ops": ops, "iops": iops, "p50_ms": p50, "p95_ms": p95}

@@ -44,7 +44,7 @@ def usb_stats() -> Dict[str, Any]:
         except Exception as e:
             info["notes"] = f"sysfs scan error: {e}"
         info["host_controllers"] = host_controllers
-        info["versions"] = sorted(sorted(set(versions)))
+        info["versions"] = sorted(set(versions))
         info["link_speeds_Mbps"] = sorted(speeds)
     else:
         info["host_controllers"] = None
@@ -76,8 +76,13 @@ def mem_score(results: Dict[str, Any]) -> Dict[str, Any]:
     m = results.get("mem", {}).get("bandwidth", {})
     wr = float(m.get("fill_MBps", 0.0) or 0.0)
     rd = float(m.get("read_MBps", 0.0) or 0.0)
+    # Adapt thresholds for python mode which is known to under-report read bandwidth
+    eff_read_min = th["mem_min_read_MBps"]
+    mode_eff = (m.get("mode_effective") or "").lower()
+    if mode_eff == "python":
+        eff_read_min = min(eff_read_min, 400.0)
     wr_ratio = wr / max(1e-9, th["mem_min_write_MBps"]) if wr else 0.0
-    rd_ratio = rd / max(1e-9, th["mem_min_read_MBps"]) if rd else 0.0
+    rd_ratio = rd / max(1e-9, eff_read_min) if rd else 0.0
     ratio = min(wr_ratio, rd_ratio)
     score = _clamp(100.0 * (ratio / 1.2))  # 120% of threshold ~= 100
     return {"read_MBps": rd, "write_MBps": wr, "score": round(score, 1)}
@@ -147,4 +152,3 @@ def aggregate(results: Dict[str, Any]) -> Dict[str, Any]:
         "gpu": gpu,
         "aggregate_score": round(agg, 1),
     }
-
