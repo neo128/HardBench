@@ -79,7 +79,7 @@ nodes:
   #     - left_action_gripper
 
   - id: zeromq
-    path: ../dora_zeromq.py
+    path: dora_zeromq.py
     inputs: 
       image_top: camera_top/image
       image_depth_top: camera_top/image_depth
