@@ -20,6 +20,7 @@ from upload_to_nas import DataUploader
 import uuid
 from upload_to_ks3 import RobotDataProcessor
 from utils import setup_from_yaml,get_machine_info
+from robot_data_uploader import config
 
 
 
@@ -92,10 +93,17 @@ class FlaskServer:
             self.web = config_dict['platform_server_ip_release']
             self.machine_id_path = config_dict['machine_id_path_release']
             self.machine_unique_code = config_dict['machine_code_path_release']
+            config.SERVER_URL = config_dict['ks3_data_path_release']
+            config.BUCKET_NAME = config_dict['ks3_data_bucket_release']
+            config.UPLOAD_TARGET = config_dict['ks3_data_target_release']
         else:
             self.web = config_dict['platform_server_ip_dev']
             self.machine_id_path = config_dict['machine_id_path_dev']
             self.machine_unique_code = config_dict['machine_code_path_dev']
+            config.SERVER_URL = config_dict['ks3_data_path_dev']
+            config.BUCKET_NAME = config_dict['ks3_data_bucket_dev']
+            config.UPLOAD_TARGET = config_dict['ks3_data_target_dev']
+
         self.port = config_dict['device_server_port']
         self.upload_type = config_dict['upload_type']
         self.upload_time = str(config_dict['upload_time'])
@@ -126,7 +134,7 @@ class FlaskServer:
         self.upload_thread = threading.Thread(target=self.time_job, daemon=True)
         self.upload_nas_flag = False
         self.upload_ks3_flag = False
-        self.upload_ks3_id = '0'
+        self.upload_id = '0'
         self._running = False
         self.ks3_processor = RobotDataProcessor(
             fold_path=config_dict['device_data_path'],
@@ -289,10 +297,10 @@ class FlaskServer:
             logging.error(f"[API Error] make_request_with_token - 请求异常: {str(e)}")
             return None
  
-    def local_to_nas(self):
+    def local_to_nas(self, task_id_list=None):  # 添加参数
         logging.info(f"[Task] local_to_nas - 任务执行开始于: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         if self.login():
-            self.nas_processor.upload()
+            self.nas_processor.upload(task_id_list)  # 假设upload方法也需要这个参数
             with self.upload_lock:
                 self.upload_nas_flag = False
             logging.info("[Task] local_to_nas - 任务执行完成")
@@ -301,10 +309,10 @@ class FlaskServer:
                 self.upload_nas_flag = False
             logging.error("[Task] local_to_nas - 任务执行失败，登录不成功")
 
-    def local_to_ks3(self):
+    def local_to_ks3(self,task_id_list=None):
         logging.info(f"[Task] local_to_ks3 - 任务执行开始于: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         if self.login():    
-            self.ks3_processor.encode_and_upload(self.token)
+            self.ks3_processor.encode_and_upload(self.token,task_id_list)
             with self.upload_lock:
                 self.upload_ks3_flag = False
             logging.info("[Task] local_to_ks3 - 任务执行完成")
@@ -473,6 +481,8 @@ class FlaskServer:
         # 手动上传
         self.app.add_url_rule('/api/manual_upload_nas', 'manual_upload_nas', self.manual_upload_nas, methods=['POST']) 
         self.app.add_url_rule('/api/manual_upload_ks3', 'manual_upload_ks3', self.manual_upload_ks3, methods=['GET']) 
+        self.app.add_url_rule('/api/get_upload_mode', 'get_upload_mode', self.get_upload_mode, methods=['GET']) 
+        self.app.add_url_rule('/api/manual_upload', 'manual_upload', self.manual_upload, methods=['POST']) 
 
         # nas上传反馈
         self.app.add_url_rule('/api/upload_start', 'upload_start', self.upload_start, methods=['POST'])
@@ -744,7 +754,7 @@ class FlaskServer:
             data = request.get_json()
             self.replay_data = data
             logging.debug(f"[API] start_collection - 请求数据: {data}")
-            if self.upload_ks3_id == str(data['task_id']):
+            if self.upload_id == str(data['task_id']):
                 response_data = {
                             "code": 404,
                             "data": {},
@@ -995,13 +1005,66 @@ class FlaskServer:
             return jsonify({"error": "Unauthorized"}), 401
         logging.info("[API] standby - 待命状态")
         pass
-
-    def manual_upload_nas(self):
+    
+    def get_upload_mode(self):
         try:
-            logging.info("[API] manual_upload_nas - 手动上传NAS请求")
+            response_data = {
+                "code": 200,
+                "data": {
+                    "mode": self.upload_type
+                },
+                "msg": "success"
+            }
+            logging.info(f"[API] get_upload_mode - 获取上传模式:{self.upload_type}")
+            return jsonify(response_data), 200
+        except Exception as e:
+            logging.error(f"[API Error] get_upload_mode - 异常: {str(e)}")
+            response_data = {
+                "code": 500,
+                "data": {},
+                "msg": str(e)
+            }
+            return jsonify(response_data), 500
+        
+    def manual_upload(self):
+        try:
+            request_data = request.get_json()
+            upload_type = request_data["upload_type"]
+            task_id_list = request_data["task_id_list"]
+
+            # 定义上传类型与内部方法的映射
+            upload_methods = {
+                "nas": self._upload_nas,  # 内部方法，接收 task_id_list
+                "ks3": self._upload_ks3   # 内部方法，接收 task_id_list
+            }
+
+            if upload_type not in upload_methods:
+                response_data = {
+                    "code": 400,
+                    "data": {},
+                    "msg": f"Unsupported upload_type: {upload_type}. Must be one of {list(upload_methods.keys())}"
+                }
+                return jsonify(response_data), 400
+
+            # 调用内部方法并传递 task_id_list
+            return upload_methods[upload_type](task_id_list)
+
+        except Exception as e:
+            logging.error(f"[API Error] manual_upload - 异常: {str(e)}")
+            response_data = {
+                "code": 500,
+                "data": {},
+                "msg": str(e)
+            }
+            return jsonify(response_data), 500
+
+    # 内部方法：接收 task_id_list 参数
+    def _upload_nas(self, task_id_list):
+        try:
+            logging.info(f"[API] _upload_nas - 手动上传NAS请求, task_id_list: {task_id_list}")
             with self.upload_lock:
                 if self.upload_nas_flag:
-                    logging.warning("[API] manual_upload_nas - 数据上传中")
+                    logging.warning("[API] _upload_nas - 数据上传中")
                     response_data = {
                         "code": 601,
                         "data": {},
@@ -1011,7 +1074,7 @@ class FlaskServer:
                 else:
                     self.upload_nas_flag = True
                     if not self.nas_processor.nas_auth.get_auth_sid():
-                        logging.error("[API] manual_upload_nas - 连接NAS异常")
+                        logging.error("[API] _upload_nas - 连接NAS异常")
                         response_data = {
                             "code": 601,
                             "data": {},
@@ -1020,7 +1083,7 @@ class FlaskServer:
                         self.upload_nas_flag = False
                         return jsonify(response_data), 200
                     if not self.login():
-                        logging.error("[API] manual_upload_nas -网络异常")
+                        logging.error("[API] _upload_nas - 网络异常")
                         response_data = {
                             "code": 601,
                             "data": {},
@@ -1028,9 +1091,14 @@ class FlaskServer:
                         }
                         self.upload_nas_flag = False
                         return jsonify(response_data), 200
-                    upload_manual_thread = threading.Thread(target=self.local_to_nas, daemon=True)
+                    # 将 task_id_list 传递给线程
+                    upload_manual_thread = threading.Thread(
+                        target=self.local_to_nas,
+                        args=(task_id_list,),  # 传递参数
+                        daemon=True
+                    )
                     upload_manual_thread.start()
-                    logging.info("[API] manual_upload_nas - 启动上传线程")
+                    logging.info("[API] _upload_nas - 启动上传线程")
                     response_data = {
                         "code": 200,
                         "data": {},
@@ -1038,20 +1106,21 @@ class FlaskServer:
                     }
                     return jsonify(response_data), 200
         except Exception as e:
-            logging.error(f"[API Error] manual_upload_nas - 异常: {str(e)}")
+            logging.error(f"[API Error] _upload_nas - 异常: {str(e)}")
             response_data = {
                 "code": 500,
                 "data": {},
                 "msg": str(e)
             }
             return jsonify(response_data), 500
-        
-    def manual_upload_ks3(self):
+
+    # 内部方法：接收 task_id_list 参数
+    def _upload_ks3(self, task_id_list):
         try:
-            logging.info("[API] manual_upload_ks3 - 手动上传NAS请求")
+            logging.info(f"[API] _upload_ks3 - 手动上传KS3请求, task_id_list: {task_id_list}")
             with self.upload_lock:
                 if self.upload_ks3_flag:
-                    logging.warning("[API] manual_upload_ks3 - 数据上传中")
+                    logging.warning("[API] _upload_ks3 - 数据上传中")
                     response_data = {
                         "code": 601,
                         "data": {},
@@ -1061,7 +1130,7 @@ class FlaskServer:
                 else:
                     self.upload_ks3_flag = True
                     if not self.login():
-                        logging.error("[API] manual_upload_ks3 -网络异常")
+                        logging.error("[API] _upload_ks3 - 网络异常")
                         response_data = {
                             "code": 601,
                             "data": {},
@@ -1069,9 +1138,14 @@ class FlaskServer:
                         }
                         self.upload_ks3_flag = False
                         return jsonify(response_data), 200
-                    upload_manual_thread = threading.Thread(target=self.local_to_ks3, daemon=True)
+                    # 将 task_id_list 传递给线程
+                    upload_manual_thread = threading.Thread(
+                        target=self.local_to_ks3,
+                        args=(task_id_list,),  # 传递参数
+                        daemon=True
+                    )
                     upload_manual_thread.start()
-                    logging.info("[API] manual_upload_ks3 - 启动上传线程")
+                    logging.info("[API] _upload_ks3 - 启动上传线程")
                     response_data = {
                         "code": 200,
                         "data": {},
@@ -1079,13 +1153,23 @@ class FlaskServer:
                     }
                     return jsonify(response_data), 200
         except Exception as e:
-            logging.error(f"[API Error] manual_upload_ks3 - 异常: {str(e)}")
+            logging.error(f"[API Error] _upload_ks3 - 异常: {str(e)}")
             response_data = {
                 "code": 500,
                 "data": {},
                 "msg": str(e)
             }
             return jsonify(response_data), 500
+
+    # 保留原有路由绑定（兼容性）
+    def manual_upload_nas(self):
+        # 调用内部方法，传递空列表或默认值
+        return self._upload_nas(task_id_list=[])
+
+    def manual_upload_ks3(self):
+        # 调用内部方法，传递空列表或默认值
+        return self._upload_ks3(task_id_list=[])
+          
 
     # ---------------------------------------upload----------------------------------------------
     def upload_start(self):
@@ -1195,7 +1279,7 @@ class FlaskServer:
             logging.info("[API] upload_task_id - 上传id通知")
             data = request.get_json()
             logging.debug(f"[API] upload_task_id - 请求数据: {data}")
-            self.upload_ks3_id  = data['task_id']
+            self.upload_id  = data['task_id']
             return jsonify({}), 200
         except Exception as e:
             logging.error(f"[API Error] upload_task_id - 异常: {str(e)}")

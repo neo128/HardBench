@@ -2,7 +2,7 @@
     "device_name": "虚拟机器人V1.1",
     "device_body": "aloha",
     "specifications": {
-        "end_type": "",
+        "end_type": "二指夹爪",
         "fps": 30,
         "camera": {
             "number": 3,
