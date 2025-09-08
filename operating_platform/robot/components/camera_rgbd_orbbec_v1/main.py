@@ -255,9 +255,9 @@ def main():
                 depth_data,
                 None,
                 0,
-                255,
+                65535,
                 cv2.NORM_MINMAX,
-                dtype=cv2.CV_8U,
+                dtype=cv2.CV_16U,
             )
             # Send Depth Image
             depth_image = cv2.applyColorMap(depth_image, cv2.COLORMAP_JET)
