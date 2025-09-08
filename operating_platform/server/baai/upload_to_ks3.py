@@ -9,6 +9,7 @@ from typing import List, Dict, Union, Optional
 from robot_data_uploader.collect_uploader import BaaiRobotDataUploader
 from robot_data_uploader.config import UPLOAD_TARGET
 import datetime
+from utils import setup_from_yaml
 
 
 class RobotDataProcessor:
@@ -96,13 +97,13 @@ class RobotDataProcessor:
             each_task_path (str): 任务路径
             
         Returns:
-            int: 上传状态 (0: 未上传, 1: 上传成功, 2: 上传失败)
+            int: 上传状态 (0: 未上传, 1: 上传成功)
         """
         each_common_record_path = os.path.join(each_task_path, 'meta', 'common_record.json')
         try:
             with open(each_common_record_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                status = data.get('upload_status', 0)
+                status = data.get('last_upload_id', 0)
                 print(f"[DEBUG] 当前上传状态: {status}")
                 return status
         except Exception as e:
@@ -195,10 +196,11 @@ class RobotDataProcessor:
         except Exception as e:
             print(f"[ERROR] 获取路径列表失败: {str(e)}")
             return [], []
-    
-    def encode_video_frames(self, imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
+        
+    @staticmethod
+    def encode_video_frames(imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
         """
-        编码普通视频帧
+        编码普通视频帧（自动检测图片后缀）
         
         Args:
             imgs_dir (Union[Path, str]): 图像目录
@@ -213,22 +215,36 @@ class RobotDataProcessor:
             imgs_dir = Path(imgs_dir)
             video_path = Path(video_path)
             video_path.parent.mkdir(parents=True, exist_ok=True)
-
+            
+            # 自动检测图片后缀
+            supported_extensions = ['.jpg', '.jpeg', '.png']
+            detected_ext = None
+            for ext in supported_extensions:
+                if list(imgs_dir.glob(f"*{ext}")):  # 检查是否存在该扩展名的文件
+                    detected_ext = ext
+                    break
+            
+            if not detected_ext:
+                raise ValueError(f"在 {imgs_dir} 中未找到支持的图片文件（支持的后缀: {', '.join(supported_extensions)}）")
+            
+            print(f"[DEBUG] 检测到图片后缀: {detected_ext}")
+            
+            # 构建FFmpeg参数
             ffmpeg_args = OrderedDict([
                 ("-f", "image2"),
                 ("-r", str(fps)),
-                ("-i", str(imgs_dir / "frame_%06d.jpg")),
+                ("-i", str(imgs_dir / f"frame_%06d{detected_ext}")),
                 ("-vcodec", "libx264"),
                 ("-pix_fmt", "yuv420p"),
                 ("-g", "5"),
                 ("-crf", "18"),
                 ("-loglevel", "error"),
             ])
-
+            
             ffmpeg_cmd = ["ffmpeg"] + [item for pair in ffmpeg_args.items() for item in pair] + [str(video_path)]
             print(f"[DEBUG] 执行FFmpeg命令: {' '.join(ffmpeg_cmd)}")
             
-            subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
+            subprocess.run(ffmpeg_cmd, check=True)
             
             if not video_path.exists():
                 raise OSError(f"视频文件未生成: {video_path}")
@@ -238,8 +254,9 @@ class RobotDataProcessor:
         except Exception as e:
             print(f"[ERROR] 普通视频编码失败: {str(e)}")
             return False
-        
-    def encode_label_video_frames(self, imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
+
+    @staticmethod
+    def encode_label_video_frames(imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
         """
         编码普通视频帧
         
@@ -256,12 +273,24 @@ class RobotDataProcessor:
             imgs_dir = Path(imgs_dir)
             video_path = Path(video_path)
             video_path.parent.mkdir(parents=True, exist_ok=True)
-            #  ("-vcodec", "libx264"),
+            
+            # 自动检测图片后缀
+            supported_extensions = ['.jpg', '.jpeg', '.png']
+            detected_ext = None
+            for ext in supported_extensions:
+                if list(imgs_dir.glob(f"*{ext}")):  # 检查是否存在该扩展名的文件
+                    detected_ext = ext
+                    break
+            
+            if not detected_ext:
+                raise ValueError(f"在 {imgs_dir} 中未找到支持的图片文件（支持的后缀: {', '.join(supported_extensions)}）")
+            
+            print(f"[DEBUG] 检测到图片后缀: {detected_ext}")
 
             ffmpeg_args = OrderedDict([
                 ("-f", "image2"),
                 ("-r", str(fps)),
-                ("-i", str(imgs_dir / "frame_%06d.jpg")),
+                ("-i", str(imgs_dir / f"frame_%06d{detected_ext}")),
                 ("-vcodec", "libx264"),
                 ("-pix_fmt", "yuv420p"),
                 ("-g", "20"),
@@ -272,7 +301,7 @@ class RobotDataProcessor:
             ffmpeg_cmd = ["ffmpeg"] + [item for pair in ffmpeg_args.items() for item in pair] + [str(video_path)]
             print(f"[DEBUG] 执行FFmpeg命令: {' '.join(ffmpeg_cmd)}")
             
-            subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
+            subprocess.run(ffmpeg_cmd, check=True)
             
             if not video_path.exists():
                 raise OSError(f"视频文件未生成: {video_path}")
@@ -282,8 +311,9 @@ class RobotDataProcessor:
         except Exception as e:
             print(f"[ERROR] 普通视频编码失败: {str(e)}")
             return False
-    
-    def encode_depth_video_frames(self, imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
+
+    @staticmethod
+    def encode_depth_video_frames(imgs_dir: Union[Path, str], video_path: Union[Path, str], fps: int) -> bool:
         """
         编码深度视频帧
         
@@ -314,7 +344,7 @@ class RobotDataProcessor:
             ]
             
             print(f"[DEBUG] 执行FFmpeg命令: {' '.join(ffmpeg_args)}")
-            subprocess.run(ffmpeg_args, check=True, stdin=subprocess.DEVNULL)
+            subprocess.run(ffmpeg_args, check=True)
             
             if not video_path.exists():
                 raise OSError(f"视频文件未生成: {video_path}")
@@ -420,6 +450,60 @@ class RobotDataProcessor:
             print(f"[INFO] 成功删除目录: {path}")
         except OSError as e:
             print(f"[ERROR] 删除目录失败: {path}, 错误: {e.strerror}")
+
+    @staticmethod
+    def modify_feature_dtypes(local_nas_info_path, target_fields, new_dtype):
+        """
+        修改 metadata 中 features 的 dtype（仅修改 target_fields 中的字段）
+        
+        Args:
+            each_task_path (str): 任务路径（包含 'meta/info.json'）
+            target_fields (list): 需要修改的字段名列表（如 ["timestamp", "frame_index"]）
+            new_dtype (str): 新的 dtype（如 "float64"）
+        
+        Returns:
+            bool: 修改成功返回 True，失败返回 False
+        """
+        
+        try:
+            # 1. 读取 JSON 文件
+            with open(local_nas_info_path, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+            
+            # 2. 检查并修改 dtype
+            if "features" not in metadata:
+                raise ValueError("Invalid metadata: missing 'features' key.")
+            
+            features = metadata["features"]
+            modified_fields = []
+
+            metadata["total_videos"] = int(metadata["total_episodes"]*len(target_fields))
+            metadata["video_path"] = "videos/chunk-{episode_chunk:03d}/{video_key}/episode_{episode_index:06d}.avi"
+            metadata["image_path"] = None
+            for field_name, field_info in features.items():
+                if field_name in target_fields:
+                    field_info["dtype"] = new_dtype
+                    modified_fields.append(field_name)
+            
+            if not modified_fields:
+                print(f"[WARNING] No target fields found in {local_nas_info_path}. Available fields: {list(features.keys())}")
+                return False
+            
+            # 3. 写回 JSON 文件
+            with open(local_nas_info_path, "w", encoding="utf-8") as f:
+                json.dump(metadata, f, indent=4, ensure_ascii=False)
+            
+            print(f"[INFO] Successfully modified dtype for {modified_fields} in {local_nas_info_path}")
+            return True
+        
+        except FileNotFoundError:
+            print(f"[ERROR] File not found: {local_nas_info_path}")
+        except json.JSONDecodeError:
+            print(f"[ERROR] Invalid JSON format in {local_nas_info_path}")
+        except Exception as e:
+            print(f"[ERROR] Failed to modify {local_nas_info_path}: {str(e)}")
+        
+        return False
     
     @staticmethod
     def modify_json(path: str, upload_status: int):
@@ -428,13 +512,13 @@ class RobotDataProcessor:
         
         Args:
             path (str): JSON文件路径
-            upload_status (int): 新的上传状态
+            last_upload_id (int): 新的上传状态
         """
         try:
             with open(path, 'r', encoding='utf-8') as file:
                 existing_data = json.load(file)
             
-            existing_data['upload_status'] = upload_status
+            existing_data['last_upload_id'] = upload_status
             
             with open(path, 'w', encoding='utf-8') as file:
                 json.dump(existing_data, file, indent=4, ensure_ascii=False)
@@ -443,7 +527,7 @@ class RobotDataProcessor:
         except Exception as e:
             print(f"[ERROR] 修改JSON文件失败: {path}, 错误: {str(e)}")
     
-    def process_date_data(self, date_data: str):
+    def process_date_data(self, date_data: str,task_id_list):
         """
         处理指定日期的数据
         
@@ -451,7 +535,12 @@ class RobotDataProcessor:
             date_data (str): 日期字符串 (格式: YYYY-MM-DD)
         """
         print(f"\n[INFO] 开始处理日期数据: {date_data}")
-        directory_path = os.path.join(self.fold_path, date_data, 'user')
+        config_dict = setup_from_yaml()
+        if config_dict["device_server_type"] == "release":
+            local_name = 'user'
+        elif config_dict["device_server_type"] == "dev":
+            local_name = 'dev'
+        directory_path = os.path.join(self.fold_path, date_data, local_name)
         
         if not os.path.exists(directory_path):
             print(f"[WARNING] 数据路径不存在: {directory_path}")
@@ -459,34 +548,47 @@ class RobotDataProcessor:
             
         entries = os.listdir(directory_path)
         subdirectories = [entry for entry in entries if os.path.isdir(os.path.join(directory_path, entry))]
-        
-        for task_data_name in subdirectories:
-            print(f"\n[INFO] 处理任务: {task_data_name}")
+        try:
+            for task_data_name in subdirectories:
+                print(f"\n[INFO] 处理任务: {task_data_name}")
+                each_task_path = os.path.join(directory_path, task_data_name)
+                entries_task_detail = os.listdir(each_task_path) # 各任务子目录列表
+                if entries_task_detail:
+                    if "meta" not in entries_task_detail: # 目录结构判断
+                        for each_task_single_name in entries_task_detail:
+                            each_task_single_path = os.path.join(each_task_path, each_task_single_name)
+                            task_info = self.read_common_record_json(each_task_single_path)
+                            task_id = task_info['task_id']
+                            if task_id_list:
+                                if int(task_id) not in task_id_list:
+                                    print(f"task id {task_id} not in task_id_list{task_id_list}")
+                                    break
+                            self.process_data(each_task_single_path,task_data_name,date_data,each_task_single_name)
+                print("data file is empty")
+        except:
+            self.local_server_task_id_request(0)
+
+    def process_data(self,each_task_path,task_data_name,date_data,each_task_single_name):
             ffmpeg_encode_flag = True
-            each_task_path = os.path.join(directory_path, task_data_name)
-            
             # 检查是否有images目录
             entries_1 = os.listdir(each_task_path)
-            subdirectories_1 = [entry for entry in entries_1 if os.path.isdir(os.path.join(each_task_path, entry))]
             
-            if 'images' in subdirectories_1:
+            if 'images' in entries_1:
                 # 处理图像和视频
                 try:
                     task_info = self.read_common_record_json(each_task_path)
                     if not task_info:
-                        continue
+                        return
                         
                     task_id = task_info['task_id']
-                    task_name = task_info['task_name']
-                    machine_id = task_info['machine_id']
                     
                     fps = self.read_info_json(each_task_path)
                     if fps is None:
-                        continue
+                        return
                         
                     task_data_id = self.read_opdata_path_json(each_task_path)
                     if not task_data_id:
-                        continue
+                        return
                         
                     # 通知服务器开始处理任务
                     self.local_server_task_id_request(task_id)
@@ -519,31 +621,41 @@ class RobotDataProcessor:
                                         print(f"[INFO] 处理普通图像mp4: {img_path} -> {label_video_path}")
                                         if not self.encode_label_video_frames(img_path, label_video_path, fps):
                                             ffmpeg_encode_flag = False
+                    each_info_path = os.path.join(each_task_path, 'meta', 'info.json')
+                    self.modify_feature_dtypes(each_info_path,entries_2,'video')  
+
                 except Exception as e:
-                    print(f"[ERROR] 处理任务 {task_data_name} 失败: {str(e)}")
+                    print(f"[ERROR] 处理任务 {each_task_single_name} 失败: {str(e)}")
                     ffmpeg_encode_flag = False
+                    self.local_server_task_id_request(0)
             else:
                 # 没有images目录，检查上传状态
-                if date_data == self.get_date_offset(6):
-                    status = self.read_common_record_json_status(each_task_path)
-                    if status == 1:
+                status = self.read_common_record_json_status(each_task_path)
+                if status == 1:
+                    print("data alreay upload")
+                    if date_data == self.get_date_offset(6):
                         # 如果是前天数据且已上传成功，则删除
                         # 这里假设date_data是前天日期，实际逻辑可能需要调整
                         self.delete_directory(each_task_path)
-                continue
-                
+                    return
+                else:
+                    task_info = self.read_common_record_json(each_task_path)
+                    if not task_info:
+                        return
+                    task_id = task_info['task_id']
+                    task_data_id = self.read_opdata_path_json(each_task_path)
+                    if not task_data_id:
+                        return
+             
             # 上传处理后的数据
             if ffmpeg_encode_flag:
-                if 'images' in subdirectories_1:
+                if 'images' in entries_1:
                     self.delete_directory(os.path.join(each_task_path, 'images'))
-                
-                target_path = os.path.join(UPLOAD_TARGET,'collect', task_data_name, machine_id, date_data)
-                target_path_sdk = os.path.join('collect', task_data_name, machine_id, date_data)
-                
+                target_path = os.path.join(UPLOAD_TARGET,'collect', task_data_name, each_task_single_name)
+                target_path_sdk = os.path.join('collect', task_data_name, each_task_single_name)
                 # 通知服务器开始上传
                 start_data = self.start_upload_data(task_id, task_data_id, each_task_path, target_path)
                 self.local_server_request('api/upload_start_ks3', start_data)
-                
                 # 执行上传
                 if self.upload_dir(each_task_path, target_path_sdk):
                     # 上传成功
@@ -557,12 +669,12 @@ class RobotDataProcessor:
                         '{"ks3_failed_msg": "网络通信错误"}'
                     )
                     self.local_server_request('api/upload_finish_ks3', finish_data)
-                    self.modify_json(os.path.join(each_task_path, 'meta', 'common_record.json'), 2)
+                    self.modify_json(os.path.join(each_task_path, 'meta', 'common_record.json'), 0)
             
             # 通知服务器任务处理完成
             self.local_server_task_id_request(0)
     
-    def encode_and_upload(self, token: str):
+    def encode_and_upload(self, token: str,task_id_list):
         """
         主处理流程：编码视频并上传
         
@@ -579,5 +691,5 @@ class RobotDataProcessor:
         
         for date_name, date_func in date_functions:
             print(f"\n[INFO] 开始处理 {date_name}")
-            date_data = date_func()
-            self.process_date_data(date_data)
+            date_data = date_func
+            self.process_date_data(date_data,task_id_list)
