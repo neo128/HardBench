@@ -67,7 +67,7 @@ nodes:
       ARM_PORT: 8080
       
   - id: monitor
-    path: ../monitor.py
+    path: monitor.py
     inputs:
       tick: dora/timer/secs/60
       hw_camera_top_single: camera_top/hw_single
@@ -80,7 +80,7 @@ nodes:
       - hw_info
       
   - id: zeromq
-    path: ../dora_zeromq.py
+    path: dora_zeromq.py
     inputs: 
       image_top: camera_top/image
       image_depth_top: camera_top/image_depth
