@@ -13,6 +13,7 @@ import torch
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from functools import cache
+from typing import Any
 
 import threading
 import cv2
@@ -46,6 +47,18 @@ socket_image.setsockopt(zmq.RCVTIMEO, 2000)
 socket_joint = zmq_context.socket(zmq.PAIR)
 socket_joint.connect(ipc_address_joint)
 socket_joint.setsockopt(zmq.RCVTIMEO, 2000)
+
+def so101_zmq_send(event_id, buffer, wait_time_s):
+    buffer_bytes = buffer.tobytes()
+    print(f"zmq send event_id:{event_id}, value:{buffer}")
+    try:
+        socket_joint.send_multipart([
+            event_id.encode('utf-8'),
+            buffer_bytes
+        ], flags=zmq.NOBLOCK)
+    except zmq.Again:
+        pass
+    time.sleep(wait_time_s)
 
 def recv_image_server():
     """接收数据线程"""
@@ -204,8 +217,8 @@ class SO101Manipulator:
 
 
 
-    def get_motor_names(self, arm: dict[str, dict]) -> list:
-        return [f"{arm}_{motor}" for arm, bus in arm.items() for motor in bus.motors.items()]
+    def get_motor_names(self, arms: dict[str, dict]) -> list:
+        return [f"{arm}_{motor}" for arm, bus in arms.items() for motor in bus.motors]
 
     @property
     def camera_features(self) -> dict:
@@ -550,7 +563,25 @@ class SO101Manipulator:
     #         obs_dict[f"observation.images.{name}"] = images[name]
     #     return obs_dict
 
+    def send_action(self, action: dict[str, Any]):
+        """The provided action is expected to be a vector."""
+        if not self.is_connected:
+            raise RobotDeviceNotConnectedError(
+                "KochRobot is not connected. You need to run `robot.connect()`."
+            )
 
+        for name in self.leader_arms:
+            goal_joint = [ val for key, val in action.items() if name in key and "joint" in key]
+            # goal_gripper = [ val for key, val in action.items() if name in key and "gripper" in key]
+
+            # goal_joint = action[(arm_index*arm_action_dim+from_idx):(arm_index*arm_action_dim+to_idx)]
+            # goal_gripper = action[arm_index*arm_action_dim + 12]
+            # arm_index += 1
+            goal_joint_numpy = np.array([t.item() for t in goal_joint], dtype=np.float32)
+            # goal_gripper_numpy = np.array([t.item() for t in goal_gripper], dtype=np.float32)
+            # position = np.concatenate([goal_joint_numpy, goal_gripper_numpy], axis=0)
+
+            so101_zmq_send(f"action_joint_{name}", goal_joint_numpy, wait_time_s=0.01)
 
 
     # def send_action(self, action: torch.Tensor):

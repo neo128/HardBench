@@ -116,11 +116,11 @@ def make_robot_from_config(config: RobotConfig):
     print("In make_robot_from_config")
 
     if isinstance(config, AdoraRobotConfig):
-        from operating_platform.robot.robots.adora_manipulator import AdoraManipulator
+        from operating_platform.robot.robots.adora_v1.manipulator import AdoraManipulator
         print("In AdoraRobotConfig")
         return AdoraManipulator(config)
     elif isinstance(config, AlohaRobotConfig):
-        from operating_platform.robot.robots.aloha_manipulator import AlohaManipulator
+        from operating_platform.robot.robots.aloha_v1.manipulator import AlohaManipulator
         print("In AlohaManipulator")
         return AlohaManipulator(config)
     elif isinstance(config, PikaV1RobotConfig):
@@ -133,7 +133,7 @@ def make_robot_from_config(config: RobotConfig):
         return SO101Manipulator(config)
     
     elif isinstance(config, RealmanRobotConfig):
-        from operating_platform.robot.robots.realman_manipulator import RealmanManipulator
+        from operating_platform.robot.robots.realman_v1.manipulator import RealmanManipulator
         print("In RealmanRobotConfig")
         return RealmanManipulator(config)
     else:
