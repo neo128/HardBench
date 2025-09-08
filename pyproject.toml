@@ -1,5 +1,5 @@
 [project]
-name = "operating-platform"
+name = "WanX-EI-Studio"
 version = "0.1.0"
 description = ""
 readme = "README.md"
@@ -39,6 +39,8 @@ dependencies = [
     "sounddevice",
     "soundfile",
     "seaborn",
+    "rerun-sdk (==0.22.0)",
+    "robotic-arm (>=1.1.1,<2.0.0)",
 ]
 
 [tool.setuptools]

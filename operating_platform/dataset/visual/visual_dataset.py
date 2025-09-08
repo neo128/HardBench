@@ -60,6 +60,7 @@ local$ rerun ws://localhost:9087
 ```
 
 """
+import webbrowser
 
 import argparse
 import gc
@@ -78,6 +79,7 @@ import cv2
 from threading import Event
 
 from operating_platform.dataset.dorobot_dataset import DoRobotDataset
+
 
 
 class EpisodeSampler(torch.utils.data.Sampler):
@@ -135,6 +137,7 @@ def visualize_dataset(
 
     if mode not in ["local", "distant"]:
         raise ValueError(mode)
+    logging.basicConfig(level=logging.DEBUG)
 
     spawn_local_viewer = mode == "local" and not save
     rr.init(f"{repo_id}/episode_{episode_index}", spawn=spawn_local_viewer)
@@ -146,8 +149,7 @@ def visualize_dataset(
 
     try:
         if mode == "distant":
-            rr.serve_web(open_browser=True, web_port=web_port, ws_port=ws_port)
-
+            rr.serve_web(open_browser=False, web_port=web_port, ws_port=ws_port)
         logging.info("Logging to Rerun")
 
         for batch in tqdm.tqdm(dataloader, total=len(dataloader)):
@@ -155,9 +157,10 @@ def visualize_dataset(
             for i in range(len(batch["index"])):
                 rr.set_time_sequence("frame_index", batch["frame_index"][i].item())
                 rr.set_time_seconds("timestamp", batch["timestamp"][i].item())
-
                 # display each camera image
                 for key in dataset.meta.camera_keys:
+                    if 'depth' in key:
+                        continue  
                     # TODO(rcadene): add `.compress()`? is it lossless?
                     # rr.log(key, rr.Image(to_hwc_uint8_numpy(batch[key][i])))
                     if len(dataset.meta.video_keys)>0:
@@ -173,7 +176,6 @@ def visualize_dataset(
                         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                         
                         rr.log(key, rr.Image(img))
-
                 # display each dimension of action space (e.g. actuators command)
                 if "action" in batch:
                     for dim_idx, val in enumerate(batch["action"][i]):
@@ -220,6 +222,8 @@ def visualize_dataset(
     finally:
         rr.disconnect()
 
+
+    
 
 def main():
     parser = argparse.ArgumentParser()
