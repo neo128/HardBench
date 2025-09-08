@@ -209,3 +209,4 @@ docker/*.tar*
 *.STL
 .pids
 .vscode
+*.build
