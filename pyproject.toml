@@ -43,8 +43,10 @@ dependencies = [
     "robotic-arm (>=1.1.1,<2.0.0)",
 ]
 
-[tool.setuptools]
-packages = ["operating_platform"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["operating_platform*"]
+exclude = ["operating_platform.server*"]
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
