@@ -570,6 +570,12 @@ class SO101RobotConfig(ManipulatorRobotConfig):
                 width=640,
                 height=480,
             ),
+            "image_top_dep": OpenCVCameraConfig(
+                camera_index=2,
+                fps=30,
+                width=640,
+                height=480,
+            ),
         }
     )
 
