@@ -1080,6 +1080,7 @@ class DoRobotDataset(torch.utils.data.Dataset):
 
         self.stop_audio_writer()
         self.wait_audio_writer()
+        self._wait_image_writer()
 
         if episode_index == 0 and self.meta.total_episodes == 0:
             print(f"[WARNING] dorobot_dataset.py clear_episode_buffer(): 检测到 ep_idx=0，即将删除整个目录树: {self.root}")

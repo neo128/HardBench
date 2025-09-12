@@ -145,24 +145,24 @@ class AlohaRobotConfig(RobotConfig):
                 width=640,
                 height=480,
             ),
-            # "image_depth_top": OpenCVCameraConfig(
-            #     camera_index=4,
-            #     fps=30,
-            #     width=640,
-            #     height=400,
-            # ),
-            # "image_depth_right": OpenCVCameraConfig(
-            #     camera_index=5,
-            #     fps=30,
-            #     width=640,
-            #     height=400,
-            # ),
-            # "image_depth_left": OpenCVCameraConfig(
-            #     camera_index=6,
-            #     fps=30,
-            #     width=640,
-            #     height=400,
-            # ),
+            "image_depth_top": OpenCVCameraConfig(
+                camera_index=4,
+                fps=30,
+                width=640,
+                height=400,
+            ),
+            "image_depth_right": OpenCVCameraConfig(
+                camera_index=5,
+                fps=30,
+                width=640,
+                height=400,
+            ),
+            "image_depth_left": OpenCVCameraConfig(
+                camera_index=6,
+                fps=30,
+                width=640,
+                height=400,
+            ),
         }
     )
 
