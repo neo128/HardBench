@@ -41,6 +41,8 @@ dependencies = [
     "seaborn",
     "rerun-sdk (==0.22.0)",
     "robotic-arm (>=1.1.1,<2.0.0)",
+    "websockets",
+    "protobuf",
 ]
 
 [tool.setuptools.packages.find]
