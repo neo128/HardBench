@@ -511,7 +511,11 @@ class FlaskServer:
     def send_message_to_robot(self, sid, message):
         """向特定机器人客户端发送消息"""
         logging.info(f"[WebSocket] send_message_to_robot - 发送消息到 {sid}: {message}")
-        self.socketio.emit('robot_command', message, room=sid, namespace='/')
+        try:
+            self.socketio.emit('robot_command', message, room=sid, namespace='/')
+        except Exception as e:
+            logging.error(f"[WebSocket] send_message_to_robot_error:{str(e)}")
+
 
     
     # ---------------------- WebSocket 事件处理 ----------------------
