@@ -99,7 +99,10 @@ def validate_action_data(df, joint_change_thresholds):
 
     # 检查相邻帧突变
     diff = np.abs(action_data[1:]) - np.abs(action_data[:-1])
-    violations = diff > joint_change_thresholds
+
+    # 只有当阈值 >= 0.1 时才检查突变
+    threshold_mask = joint_change_thresholds >= 0.1  # 形状：(n_joints,)
+    violations = (diff > joint_change_thresholds) & threshold_mask  # 仅当阈值 >= 0.1 时才可能触发违规
     n_violations_per_frame = np.sum(violations, axis=1)
     
     if np.any(n_violations_per_frame > 0):
@@ -203,7 +206,7 @@ def validate_session(_dir, session_id,
                     info_json="info.json",
                     image_sample_interval=30,
                     image_change_threshold=0.98,
-                    threshold_percentage=0.3):
+                    threshold_percentage=0.5):
     """验证单个会话的数据，返回结构化验证结果"""
     print(f"正在验证会话: {session_id}")
     

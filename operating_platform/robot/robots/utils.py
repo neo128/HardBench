@@ -22,7 +22,8 @@ from operating_platform.robot.robots.configs import (
     AdoraRobotConfig,
     AdoraDualRobotConfig,
     RealmanRobotConfig,
-    SO101RobotConfig
+    SO101RobotConfig,
+    GALAXEARobotConfig
 )
 import platform
 import time
@@ -108,6 +109,8 @@ def make_robot_config(robot_type: str, **kwargs) -> RobotConfig:
         return RealmanRobotConfig(**kwargs)
     elif robot_type == "so101":
         return SO101RobotConfig(**kwargs)
+    elif robot_type == "galaxea":
+        return GALAXEARobotConfig(**kwargs)
     else:
         raise ValueError(f"Robot type '{robot_type}' is not available.")
 
@@ -136,6 +139,11 @@ def make_robot_from_config(config: RobotConfig):
         from operating_platform.robot.robots.realman_v1.manipulator import RealmanManipulator
         print("In RealmanRobotConfig")
         return RealmanManipulator(config)
+    
+    elif isinstance(config, GALAXEARobotConfig):
+        from operating_platform.robot.robots.galaxea_v1.manipulator import GALAXEAManipulator
+        print("In RealmanRobotConfig")
+        return GALAXEAManipulator(config)
     else:
         print("Not match robot")
         raise ValueError(f"Robot type is not available.")
