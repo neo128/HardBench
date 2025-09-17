@@ -30,6 +30,7 @@ from operating_platform.robot.robots.com_configs.motors import (
     DynamixelMotorsBusConfig,
     FeetechMotorsBusConfig,
     MotorsBusConfig,
+    RosMotorsBusConfig,
 )
 
 
@@ -566,6 +567,181 @@ class SO101RobotConfig(ManipulatorRobotConfig):
             ),
             "image_wrist": OpenCVCameraConfig(
                 camera_index=1,
+                fps=30,
+                width=640,
+                height=480,
+            ),
+        }
+    )
+
+    use_videos: bool = False
+
+    microphones: dict[str, int] = field(
+        default_factory=lambda: {
+            # "audio_right": 2,
+            # "audio_left": 4,
+        }
+    )
+
+@RobotConfig.register_subclass("galaxea")
+@dataclass
+class GALAXEARobotConfig(RobotConfig):
+    # calibration_dir: str = ".cache/calibration/so101"
+    # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
+    # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as
+    # the number of motors in your follower arms.
+    # max_relative_target: int | None = None
+    lead_arms: dict[str, MotorsBusConfig] = field(
+        default_factory=lambda: {
+            "main": RosMotorsBusConfig(
+                topic="",
+                motors={
+                    # name: (index, model)
+                    "left_arm_joint_1": [1, "galaxea_motor"],
+                    "left_arm_joint_2": [2, "galaxea_motor"],
+                    "left_arm_joint_3": [3, "galaxea_motor"],
+                    "left_arm_joint_4": [4, "galaxea_motor"],
+                    "left_arm_joint_5": [5, "galaxea_motor"],
+                    "left_arm_joint_6": [6, "galaxea_motor"],
+                    "left_gripper_joint": [7, "galaxea_motor"],
+                    "left_arm_vel_1": [8, "galaxea_motor"],
+                    "left_arm_vel_2": [9, "galaxea_motor"],
+                    "left_arm_vel_3": [10, "galaxea_motor"],
+                    "left_arm_vel_4": [11, "galaxea_motor"],
+                    "left_arm_vel_5": [12, "galaxea_motor"],
+                    "left_arm_vel_6": [13, "galaxea_motor"],
+                    "left_gripper_vel": [14, "galaxea_motor"],
+                    "right_arm_joint_1": [15, "galaxea_motor"],
+                    "right_arm_joint_2": [16, "galaxea_motor"],
+                    "right_arm_joint_3": [17, "galaxea_motor"],
+                    "right_arm_joint_4": [18, "galaxea_motor"],
+                    "right_arm_joint_5": [19, "galaxea_motor"],
+                    "right_arm_joint_6": [20, "galaxea_motor"],
+                    "right_gripper_joint": [21, "galaxea_motor"],
+                    "right_arm_vel_1": [22, "galaxea_motor"],
+                    "right_arm_vel_2": [23, "galaxea_motor"],
+                    "right_arm_vel_3": [24, "galaxea_motor"],
+                    "right_arm_vel_4": [25, "galaxea_motor"],
+                    "right_arm_vel_5": [26, "galaxea_motor"],
+                    "right_arm_vel_6": [27, "galaxea_motor"],
+                    "right_gripper_vel": [28, "galaxea_motor"]
+                },
+            ),
+        }
+    )
+
+    # right_lead_arms: dict[str, MotorsBusConfig] = field(
+    #     default_factory=lambda: {
+    #         "main": RosMotorsBusConfig(
+    #             topic="",
+    #             motors={
+    #                 # name: (index, model)
+    #                 "right_arm_joint_1": [1, "galaxea_motor"],
+    #                 "right_arm_joint_2": [2, "galaxea_motor"],
+    #                 "right_arm_joint_3": [3, "galaxea_motor"],
+    #                 "right_arm_joint_4": [4, "galaxea_motor"],
+    #                 "right_arm_joint_5": [5, "galaxea_motor"],
+    #                 "right_arm_joint_6": [6, "galaxea_motor"],
+    #                 "right_gripper_joint": [7, "galaxea_motor"],
+    #                 "right_arm_vel_1": [8, "galaxea_motor"],
+    #                 "right_arm_vel_2": [9, "galaxea_motor"],
+    #                 "right_arm_vel_3": [10, "galaxea_motor"],
+    #                 "right_arm_vel_4": [11, "galaxea_motor"],
+    #                 "right_arm_vel_5": [12, "galaxea_motor"],
+    #                 "right_arm_vel_6": [13, "galaxea_motor"],
+    #                 "right_gripper_vel": [14, "galaxea_motor"]
+    #             },
+    #         ),
+    #     }
+    # )
+
+    follower_arms: dict[str, MotorsBusConfig] = field(
+        default_factory=lambda: {
+            "main": RosMotorsBusConfig(
+                topic="/hdas/feedback_arm_left",
+                motors={
+                    # name: (index, model)
+                    "left_arm_joint_1": [1, "galaxea_motor"],
+                    "left_arm_joint_2": [2, "galaxea_motor"],
+                    "left_arm_joint_3": [3, "galaxea_motor"],
+                    "left_arm_joint_4": [4, "galaxea_motor"],
+                    "left_arm_joint_5": [5, "galaxea_motor"],
+                    "left_arm_joint_6": [6, "galaxea_motor"],
+                    "left_gripper_joint": [7, "galaxea_motor"],
+                    "left_arm_vel_1": [8, "galaxea_motor"],
+                    "left_arm_vel_2": [9, "galaxea_motor"],
+                    "left_arm_vel_3": [10, "galaxea_motor"],
+                    "left_arm_vel_4": [11, "galaxea_motor"],
+                    "left_arm_vel_5": [12, "galaxea_motor"],
+                    "left_arm_vel_6": [13, "galaxea_motor"],
+                    "left_gripper_vel": [14, "galaxea_motor"],
+                    "right_arm_joint_1": [15, "galaxea_motor"],
+                    "right_arm_joint_2": [16, "galaxea_motor"],
+                    "right_arm_joint_3": [17, "galaxea_motor"],
+                    "right_arm_joint_4": [18, "galaxea_motor"],
+                    "right_arm_joint_5": [19, "galaxea_motor"],
+                    "right_arm_joint_6": [20, "galaxea_motor"],
+                    "right_gripper_joint": [21, "galaxea_motor"],
+                    "right_arm_vel_1": [22, "galaxea_motor"],
+                    "right_arm_vel_2": [23, "galaxea_motor"],
+                    "right_arm_vel_3": [24, "galaxea_motor"],
+                    "right_arm_vel_4": [25, "galaxea_motor"],
+                    "right_arm_vel_5": [26, "galaxea_motor"],
+                    "right_arm_vel_6": [27, "galaxea_motor"],
+                    "right_gripper_vel": [28, "galaxea_motor"]
+                },
+            ),
+        }
+    )
+
+
+    # right_follower_arms: dict[str, MotorsBusConfig] = field(
+    #     default_factory=lambda: {
+    #         "main": RosMotorsBusConfig(
+    #             topic="/hdas/feedback_arm_right",
+    #             motors={
+    #                 # name: (index, model)
+    #                 "right_arm_joint_1": [1, "galaxea_motor"],
+    #                 "right_arm_joint_2": [2, "galaxea_motor"],
+    #                 "right_arm_joint_3": [3, "galaxea_motor"],
+    #                 "right_arm_joint_4": [4, "galaxea_motor"],
+    #                 "right_arm_joint_5": [5, "galaxea_motor"],
+    #                 "right_arm_joint_6": [6, "galaxea_motor"],
+    #                 "right_gripper_joint": [7, "galaxea_motor"],
+    #                 "right_arm_vel_1": [8, "galaxea_motor"],
+    #                 "right_arm_vel_2": [9, "galaxea_motor"],
+    #                 "right_arm_vel_3": [10, "galaxea_motor"],
+    #                 "right_arm_vel_4": [11, "galaxea_motor"],
+    #                 "right_arm_vel_5": [12, "galaxea_motor"],
+    #                 "right_arm_vel_6": [13, "galaxea_motor"],
+    #                 "right_gripper_vel": [14, "galaxea_motor"]
+    #             },
+    #         ),
+    #     }
+    # )
+
+    cameras: dict[str, CameraConfig] = field(
+        default_factory=lambda: {
+            "image_top_left": OpenCVCameraConfig(
+                camera_index=0,
+                fps=30,
+                width=640,
+                height=480,
+            ),
+            "image_top_right": OpenCVCameraConfig(
+                camera_index=1,
+                fps=30,
+                width=640,
+                height=480,
+            ),
+            "image_wrist_left": OpenCVCameraConfig(
+                camera_index=2,
+                fps=30,
+                width=640,
+                height=480,
+            ),
+            "image_wrist_right": OpenCVCameraConfig(
+                camera_index=3,
                 fps=30,
                 width=640,
                 height=480,
