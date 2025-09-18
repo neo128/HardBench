@@ -24,6 +24,11 @@ from operating_platform.utils.colored_logging import setup_colored_logger
 
 logger = setup_colored_logger(__name__)
 
+recv_images = {}
+recv_master_jointstats = {}
+recv_master_gripper = {}
+recv_follower_jointstats = {}
+recv_follower_gripper = {}
 
 class RobotSocket:
     def __init__(self, robot_ip, bridge_port=10800):
@@ -35,6 +40,16 @@ class RobotSocket:
         # 状态存储（线程安全）
         self.latest_states = {}
         self.state_lock = threading.Lock()
+
+        # 新增：结构化存储特定关节组数据
+        self.arm_joint_data = {
+            "right_arm": {},
+            "left_arm": {}
+        }
+        self.gripper_data = {
+            "right_gripper": {},
+            "left_gripper": {}
+        }
 
         # Protobuf 类型映射
         self.protobuf_type_map = {
@@ -128,9 +143,10 @@ class RobotSocket:
                 show_compressed_image_from_proto(pb_message, "Front Head Left Camera")
             elif "singorix/wbcs/sensor" in topic:
             # elif "singorix_omnilink/scaled_device_robot_data" in topic:
-                print(f"📊 Sensor message size: {len(data_bytes)} bytes")
+                # print(f"📊 Sensor message size: {len(data_bytes)} bytes")
                 # print(f"pb_message: {pb_message}")
-                show_sensor_from_proto(pb_message)
+                # show_sensor_from_proto(pb_message)
+                self._parse_and_store_joint_data(pb_message)
 
             with self.state_lock:
                 self.latest_states[topic] = {
@@ -151,6 +167,60 @@ class RobotSocket:
     async def _process_error(self, message):
         error_msg = message.get("msg", "未知错误")
         print(f"❗ 错误消息: {error_msg}")
+
+    def _parse_and_store_joint_data(self, sensor_msg):
+        """解析 SingoriXSensor 消息，提取并存储 arm 和 gripper 数据"""
+        if not sensor_msg.joint_sensor_map:
+            return
+
+        with self.state_lock:
+            for group_name, joint_sensor in sensor_msg.joint_sensor_map.items():
+                n = len(joint_sensor.name)
+                if n == 0:
+                    continue
+
+                # 构建当前组的关节数据字典
+                joint_data = {}
+                for i in range(n):
+                    name = joint_sensor.name[i] if i < len(joint_sensor.name) else f"joint{i}"
+                    joint_data[name] = {
+                        "position": joint_sensor.position[i] if i < len(joint_sensor.position) else 0.0,
+                        "velocity": joint_sensor.velocity[i] if i < len(joint_sensor.velocity) else 0.0,
+                        "effort": joint_sensor.effort[i] if i < len(joint_sensor.effort) else 0.0,
+                        "current": joint_sensor.current[i] if i < len(joint_sensor.current) else 0.0,
+                    }
+
+                # 存储到对应结构
+                if group_name == "right_arm":
+                    self.arm_joint_data["right_arm"] = joint_data
+                elif group_name == "left_arm":
+                    self.arm_joint_data["left_arm"] = joint_data
+                elif group_name == "right_gripper":
+                    self.gripper_data["right_gripper"] = joint_data
+                elif group_name == "left_gripper":
+                    self.gripper_data["left_gripper"] = joint_data
+
+    def get_arm_state(self, side):
+        """获取指定臂的关节状态 ('left' 或 'right')"""
+        key = f"{side}_arm"
+        with self.state_lock:
+            return self.arm_joint_data.get(key, {}).copy()
+
+    def get_gripper_state(self, side):
+        """获取指定夹爪状态 ('left' 或 'right')"""
+        key = f"{side}_gripper"
+        with self.state_lock:
+            return self.gripper_data.get(key, {}).copy()
+
+    def get_all_arm_states(self):
+        """获取所有臂状态"""
+        with self.state_lock:
+            return {k: v.copy() for k, v in self.arm_joint_data.items()}
+
+    def get_all_gripper_states(self):
+        """获取所有夹爪状态"""
+        with self.state_lock:
+            return {k: v.copy() for k, v in self.gripper_data.items()}
 
     def get_latest_state(self, topic):
         """同步方法，供外部调用"""
@@ -187,33 +257,14 @@ def show_compressed_image_from_proto(compressed_image_msg, window_name="Image"):
     cv2.waitKey(1)
 
 def show_sensor_from_proto(sensor_msg):
-    # print("✅ Get Joint successfully")
-    # print(f"Header frame: {sensor_msg.header.frame_id}")
-    # print(f"sensor_msg: {sensor_msg}")
-    # # print(MessageToJson(sensor_msg))
-
-    # # 调试：打印所有字段
-    # print("Fields present:", [field.name for field, value in sensor_msg.ListFields()])
-
     if not sensor_msg.joint_sensor_map:
         print("⚠️  No joint data in sensor message.")
         return
-    
-    field = sensor_msg.joint_sensor_map
-    
-    # if hasattr(field, 'items'):  # 是 map
-    #     for joint_name, joint_data in field.items():
-    #         print(f"Joint: {joint_name}, Pos: {joint_data.position}")
-    # else:  # 是 repeated（旧格式）
-    #     for entry in field:  # 假设每个 entry 有 .key 和 .value
-    #         joint_name = entry.key
-    #         joint_data = entry.value
-    #         print(f"Joint: {joint_name}, Pos: {joint_data.position}")
 
     for group_name, joint_sensor in sensor_msg.joint_sensor_map.items():
-        # print(f"=== Joint Group: {group_name} ===")
-        # if joint_sensor.header:
-        #     print(f"  Header: {joint_sensor.header.timestamp.sec}.{joint_sensor.header.timestamp.nanosec}")
+        print(f"=== Joint Group: {group_name} ===")
+        if joint_sensor.header:
+            print(f"  Header: {joint_sensor.header.timestamp.sec}.{joint_sensor.header.timestamp.nanosec}")
 
         n = len(joint_sensor.name)
         if n == 0:
@@ -227,14 +278,12 @@ def show_sensor_from_proto(sensor_msg):
             eff = joint_sensor.effort[i] if i < len(joint_sensor.effort) else 0.0
             curr = joint_sensor.current[i] if i < len(joint_sensor.current) else 0.0
 
-            # print(f"  Joint[{i}]: {name} | pos={pos:.4f} rad | vel={vel:.4f} rad/s | eff={eff:.4f} Nm | curr={curr:.4f} A")
+            print(f"  Joint[{i}]: {name} | pos={pos:.4f} rad | vel={vel:.4f} rad/s | eff={eff:.4f} Nm | curr={curr:.4f} A")
 
 
 async def main():
     robot_ip = "127.0.0.1"
     robot_socket = RobotSocket(robot_ip)
-
-    # 启动连接任务（后台运行）
     connect_task = asyncio.create_task(robot_socket.connect())
 
     try:
@@ -252,7 +301,7 @@ async def main():
         return
     
     try:
-         while True:
+        while True:
             # 非阻塞地轮询状态（不影响 WebSocket 接收）
             topics = robot_socket.get_all_topics()
             print(f"📊 当前活跃主题: {topics}")
@@ -262,29 +311,44 @@ async def main():
                 if state:
                     print(f"⏱️ 传感器数据接收时间: {state['received']}")
 
-            await asyncio.sleep(1.0)
+            # 👇 新增：打印存储的 arm 和 gripper 数据
+            right_arm = robot_socket.get_arm_state("right")
+            left_arm = robot_socket.get_arm_state("left")
+            right_gripper = robot_socket.get_gripper_state("right")
+            left_gripper = robot_socket.get_gripper_state("left")
 
-    # except KeyboardInterrupt:
-    #     logger.info("👋 key 用户中断，正在关闭程序...")
+            print("\n=== 🤖 实时关节状态 ===")
+            if right_arm:
+                pos_str = ", ".join([f"{k}: {v['position']:.4f}" for k, v in right_arm.items()])
+                print(f"👉 右臂: {pos_str}")
+            if left_arm:
+                pos_str = ", ".join([f"{k}: {v['position']:.4f}" for k, v in left_arm.items()])
+                print(f"👈 左臂: {pos_str}")
+            if right_gripper:
+                pos_str = ", ".join([f"{k}: {v['position']:.4f}" for k, v in right_gripper.items()])
+                print(f"✋ 右夹爪: {pos_str}")
+            if left_gripper:
+                pos_str = ", ".join([f"{k}: {v['position']:.4f}" for k, v in left_gripper.items()])
+                print(f"✋ 左夹爪: {pos_str}")
+            await asyncio.sleep(1.0)
+            
+    except KeyboardInterrupt:
+        logger.info("👋 用户中断，正在关闭程序...")
     except Exception as e:
         logger.error(f"💥 主循环异常: {e}")
     finally:
         logger.info("🛑 正在关闭机器人连接...")
         await robot_socket.shutdown()
-        # 确保 connect_task 完成或取消
         if not connect_task.done():
             connect_task.cancel()
             try:
                 await connect_task
             except asyncio.CancelledError:
-                pass  # 正常取消，忽略
+                pass
 
         await asyncio.sleep(0.1)
 
 
-# ========================
-# 启动入口
-# ========================
 if __name__ == "__main__":
     try:
         asyncio.run(main())
