@@ -20,6 +20,7 @@ from galbot.sensor_proto import imu_pb2, image_pb2, camera_pb2, joy_pb2
 from galbot.tf2_proto import tf2_message_pb2
 
 import threading  # 仅用于非异步部分（如外部调用 get_latest_state）
+from google.protobuf.json_format import MessageToJson
 
 
 class RobotSocket:
@@ -102,8 +103,15 @@ class RobotSocket:
 
         try:
             data_bytes = base64.b64decode(data_b64)
+
+            if not data_bytes:
+                raise ValueError(f"解码后得到空字节数据 (topic: {topic})")
+            
             pb_message = pb_class()
             pb_message.ParseFromString(data_bytes)
+
+            if pb_message is None:
+                raise ValueError(f"创建protobuf消息对象失败 (topic: {topic})")
             
             # if "/right_arm_camera/color/image_raw" in topic:
             #     show_compressed_image_from_proto(pb_message)
@@ -116,6 +124,11 @@ class RobotSocket:
                 show_compressed_image_from_proto(pb_message, "Front Head Right Camera")
             elif "/front_head_camera/left_color/image_raw" in topic:
                 show_compressed_image_from_proto(pb_message, "Front Head Left Camera")
+            elif "singorix/wbcs/sensor" in topic:
+            # elif "singorix_omnilink/scaled_device_robot_data" in topic:
+                print(f"📊 Sensor message size: {len(data_bytes)} bytes")
+                # print(f"pb_message: {pb_message}")
+                show_sensor_from_proto(pb_message)
 
             with self.state_lock:
                 self.latest_states[topic] = {
@@ -171,8 +184,8 @@ async def main():
             topics = robot_socket.get_all_topics()
             print(f"📊 当前活跃主题: {topics}")
 
-            if "/singorix/wbcs/sensor" in topics:
-                state = robot_socket.get_latest_state("/singorix/wbcs/sensor")
+            if "singorix/wbcs/sensor" in topics:
+                state = robot_socket.get_latest_state("singorix/wbcs/sensor")
                 if state:
                     print(f"⏱️ 传感器数据接收时间: {state['received']}")
 
@@ -214,6 +227,7 @@ def show_compressed_image_from_proto(compressed_image_msg, window_name="Image"):
     显示 CompressedImage protobuf 消息中的图像
     """
     data = compressed_image_msg.data
+    print(f"Image Header frame: {compressed_image_msg.header.frame_id}")
     # format = compressed_image_msg.format  # 可选，OpenCV 自动识别
 
     np_arr = np.frombuffer(data, np.uint8)
@@ -224,6 +238,49 @@ def show_compressed_image_from_proto(compressed_image_msg, window_name="Image"):
 
     cv2.imshow(window_name, image)
     cv2.waitKey(1)
+
+def show_sensor_from_proto(sensor_msg):
+    print("✅ Get Joint successfully")
+    print(f"Header frame: {sensor_msg.header.frame_id}")
+    # print(f"sensor_msg: {sensor_msg}")
+    # print(MessageToJson(sensor_msg))
+
+    # 调试：打印所有字段
+    print("Fields present:", [field.name for field, value in sensor_msg.ListFields()])
+
+    if not sensor_msg.joint_sensor_map:
+        print("⚠️  No joint data in sensor message.")
+        return
+    
+    # field = sensor_msg.joint_sensor_map
+    
+    # if hasattr(field, 'items'):  # 是 map
+    #     for joint_name, joint_data in field.items():
+    #         print(f"Joint: {joint_name}, Pos: {joint_data.position}")
+    # else:  # 是 repeated（旧格式）
+    #     for entry in field:  # 假设每个 entry 有 .key 和 .value
+    #         joint_name = entry.key
+    #         joint_data = entry.value
+    #         print(f"Joint: {joint_name}, Pos: {joint_data.position}")
+
+    for group_name, joint_sensor in sensor_msg.joint_sensor_map.items():
+        print(f"=== Joint Group: {group_name} ===")
+        if joint_sensor.header:
+            print(f"  Header: {joint_sensor.header.stamp.sec}.{joint_sensor.header.stamp.nanosec}")
+
+        n = len(joint_sensor.name)
+        if n == 0:
+            print("  ⚠️  No joints in this group.")
+            continue
+
+        for i in range(n):
+            name = joint_sensor.name[i] if i < len(joint_sensor.name) else "N/A"
+            pos = joint_sensor.position[i] if i < len(joint_sensor.position) else 0.0
+            vel = joint_sensor.velocity[i] if i < len(joint_sensor.velocity) else 0.0
+            eff = joint_sensor.effort[i] if i < len(joint_sensor.effort) else 0.0
+            curr = joint_sensor.current[i] if i < len(joint_sensor.current) else 0.0
+
+            print(f"  Joint[{i}]: {name} | pos={pos:.4f} rad | vel={vel:.4f} rad/s | eff={eff:.4f} Nm | curr={curr:.4f} A")
 
 # ========================
 # 启动入口
