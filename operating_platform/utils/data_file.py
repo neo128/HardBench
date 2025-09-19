@@ -99,19 +99,18 @@ def validate_action_data(df, joint_change_thresholds,cut_list=None):
 
     # 检查相邻帧突变
     diff = np.abs(action_data[1:]) - np.abs(action_data[:-1])
-    if joint_change_thresholds:
-        # 只有当阈值 >= 0.1 时才检查突变
-        threshold_mask = joint_change_thresholds >= 0.1  # 形状：(n_joints,)
-        violations = (diff > joint_change_thresholds) & threshold_mask  # 仅当阈值 >= 0.1 时才可能触发违规
-        n_violations_per_frame = np.sum(violations, axis=1)
-        
-        if np.any(n_violations_per_frame > 0):
-            first_violation_frame = np.where(n_violations_per_frame > 0)[0][0] + 1
-            problematic_frame_idx = first_violation_frame
-            exceeding_dims = np.where(violations[problematic_frame_idx - 1])[0]
-            error_msg = f"检测到 {problematic_frame_idx} 帧发生突变（无效动作），位于索引: {exceeding_dims}"
-            return False, error_msg
-        
+    # 只有当阈值 >= 0.1 时才检查突变
+    threshold_mask = joint_change_thresholds >= 0.5  # 形状：(n_joints,)
+    violations = (diff > joint_change_thresholds) & threshold_mask  # 仅当阈值 >= 0.1 时才可能触发违规
+    n_violations_per_frame = np.sum(violations, axis=1)
+    
+    if np.any(n_violations_per_frame > 0):
+        first_violation_frame = np.where(n_violations_per_frame > 0)[0][0] + 1
+        problematic_frame_idx = first_violation_frame
+        exceeding_dims = np.where(violations[problematic_frame_idx - 1])[0]
+        error_msg = f"检测到 {problematic_frame_idx} 帧发生突变（无效动作），位于索引: {exceeding_dims}"
+        return False, error_msg
+    
     action_data_subset_list = []
     most_common_ratio_list = []
     trigger_cut = None
@@ -655,10 +654,17 @@ def check_disk_space(min_gb=1):
 #     print(data_size(fold_path,data))
 #     print(data_duration(fold_path,data))
         
-# if __name__ == '__main__':
-#     df = pd.read_parquet('/home/liuyou/Documents/episode_000099.parquet')
-#     valid, msg = validate_action_data(df, joint_change_thresholds=None,cut_list=[(150,201)])
-#     print(msg)
+if __name__ == '__main__':
+    _dir = "/home/liuyou/Documents/DoRobot/dataset/20250918/dev/倒水_111_277/倒水_111_277_6276"
+    session_id = "episode_000000"
+    validate_session(_dir, session_id,  episodes_stats="episodes_stats.jsonl", 
+                    info_json="info.json",
+                    image_sample_interval=30,
+                    image_change_threshold=0.98,
+                    threshold_percentage=0.5,
+                    cut_list= None)
+    
+    
 
 
 
