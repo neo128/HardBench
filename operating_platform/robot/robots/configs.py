@@ -1017,6 +1017,12 @@ class DexterousHandRobotConfig(RobotConfig):
                 width=640,  
                 height=480,  
             ),
+            "image_top_depth": OpenCVCameraConfig( 
+                camera_index=2,  
+                fps=30,  
+                width=640,  
+                height=480,  
+            ),
             "image_left": OpenCVCameraConfig(
                 camera_index=0,
                 fps=30,
@@ -1035,5 +1041,5 @@ class DexterousHandRobotConfig(RobotConfig):
     microphones: dict[str, int] = field(  
         default_factory=lambda: {}  
     )  
-    use_videos: bool = True
+    use_videos: bool = False
     mock: bool = False

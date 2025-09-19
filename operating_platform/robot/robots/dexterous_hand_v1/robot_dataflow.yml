@@ -1,7 +1,7 @@
 nodes:  
  
-  - id: teleop_data_collector  
-    path: ../../components/teleop_data_collector/main.py  
+  - id: Xsens_Metagloves  
+    path: ../../components/Xsens_Metagloves/main.py  
     inputs:  
       tick: dora/timer/millis/50  
     outputs: 
@@ -19,12 +19,12 @@ nodes:
       tick: dora/timer/millis/33  
     outputs:  
       - image  
-      - depth  
+      - image_depth  
     env:  
       DEVICE_SERIAL: 337122071807
       IMAGE_WIDTH: 640  
       IMAGE_HEIGHT: 480 
-      # ENCODING: bgr8
+    
 
   - id: camera_zed  
     path: ../../components/camera_rgbd_zed/main.py  
@@ -37,19 +37,19 @@ nodes:
       DEVICE_SERIAL: 13601245
       IMAGE_WIDTH: 640  
       IMAGE_HEIGHT: 480 
-      # ENCODING: bgr8 
+    
   
  
   - id: zeromq_pose  
     path: dora_zeromq_pose.py  
     inputs:
-      head_pose: teleop_data_collector/head_pose
-      wrist_left: teleop_data_collector/left_wrist_pose  
-      wrist_right: teleop_data_collector/right_wrist_pose  
-      finger_left: teleop_data_collector/left_finger_joints  
-      finger_right: teleop_data_collector/right_finger_joints
-      left_full_skeleton: teleop_data_collector/left_full_skeleton 
-      right_full_skeleton: teleop_data_collector/right_full_skeleton 
+      head_pose: Xsens_Metagloves/head_pose
+      wrist_left: Xsens_Metagloves/left_wrist_pose  
+      wrist_right: Xsens_Metagloves/right_wrist_pose  
+      finger_left: Xsens_Metagloves/left_finger_joints  
+      finger_right: Xsens_Metagloves/right_finger_joints
+      left_full_skeleton: Xsens_Metagloves/left_full_skeleton 
+      right_full_skeleton: Xsens_Metagloves/right_full_skeleton 
 
   - id: zeromq_image  
     path: dora_zeromq_image.py  
@@ -57,18 +57,18 @@ nodes:
       image_left: camera_zed/left_image
       image_right: camera_zed/right_image
       image_top: camera_realsense/image
-      # image_top_depth: camera_realsense/depth
+      image_top_depth: camera_realsense/image_depth
 
   - id: zeromq_plot  
     path: dora_zeromq_plot.py  
     inputs:
-      head_pose: teleop_data_collector/head_pose
-      wrist_left: teleop_data_collector/left_wrist_pose  
-      wrist_right: teleop_data_collector/right_wrist_pose  
-      finger_left: teleop_data_collector/left_finger_joints  
-      finger_right: teleop_data_collector/right_finger_joints
-      left_full_skeleton: teleop_data_collector/left_full_skeleton 
-      right_full_skeleton: teleop_data_collector/right_full_skeleton
+      head_pose: Xsens_Metagloves/head_pose
+      wrist_left: Xsens_Metagloves/left_wrist_pose  
+      wrist_right: Xsens_Metagloves/right_wrist_pose  
+      finger_left: Xsens_Metagloves/left_finger_joints  
+      finger_right: Xsens_Metagloves/right_finger_joints
+      left_full_skeleton: Xsens_Metagloves/left_full_skeleton 
+      right_full_skeleton: Xsens_Metagloves/right_full_skeleton
 
 
 

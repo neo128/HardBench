@@ -119,7 +119,7 @@ def image_recv_server():
                             #print(f"Received event_id = {event_id}")
                             recv_images[event_id] = frame
                 elif 'depth' in event_id: 
-                    print(len(buffer_bytes))
+                    # print(len(buffer_bytes))
                     depth_array = np.frombuffer(buffer_bytes, dtype=np.uint16)
                     depth_frame = depth_array.reshape((480, 640))  # 已经是 RGB 格式
                     if depth_frame is not None:
@@ -145,7 +145,7 @@ def image_recv_server():
                         rgb_depth = cv2.cvtColor(depth_16bit, cv2.COLOR_GRAY2RGB)  # 扩展维度到(480,640,3)以实现保存
                         # 存储归一化后的图像用于显示
                         with lock:
-                            print(f"Received event_id = {event_id}")
+                            # print(f"Received event_id = {event_id}")
                             recv_images[event_id] = rgb_depth
 
                            
@@ -163,11 +163,11 @@ class OpenCVCamera:
         self.camera_index = config.camera_index
         self.port = None
     
-        # Store the raw (capture) resolution from the config.
+        
         self.capture_width = config.width
         self.capture_height = config.height
 
-        # If rotated by ±90, swap width and height.
+        
         if config.rotation in [-90, 90]:
             self.width = config.height
             self.height = config.width
