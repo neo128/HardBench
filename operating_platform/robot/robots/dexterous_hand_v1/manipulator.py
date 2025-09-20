@@ -119,7 +119,7 @@ def image_recv_server():
                             #print(f"Received event_id = {event_id}")
                             recv_images[event_id] = frame
                 elif 'depth' in event_id: 
-                    # print(len(buffer_bytes))
+                    print(len(buffer_bytes))
                     depth_array = np.frombuffer(buffer_bytes, dtype=np.uint16)
                     depth_frame = depth_array.reshape((480, 640))  # 已经是 RGB 格式
                     if depth_frame is not None:
@@ -243,10 +243,10 @@ class DexterousHandManipulator:
         
         self.cameras =  make_cameras_from_configs(self.config.cameras)
         
-        self.pose = {}  
-        self.pose["left_wrist"] = self.config.left_wrist_tracker.motors  
-        self.pose["right_wrist"] = self.config.right_wrist_tracker.motors  
-        self.pose["head"] = self.config.head_tracker.motors
+        self.follower_arms = {} 
+        self.follower_arms["left_wrist"] = self.config.left_wrist_tracker.motors  
+        self.follower_arms["right_wrist"] = self.config.right_wrist_tracker.motors  
+        self.follower_arms["head"] = self.config.head_tracker.motors
 
         self.finger_sensors = {}  
         self.finger_sensors["left_finger"] = self.config.left_finger_sensors.motors  
@@ -283,7 +283,7 @@ class DexterousHandManipulator:
   
     @property    
     def motor_features(self) -> dict:  
-        all_motor_groups = {**self.pose, **self.finger_sensors, **self.full_skeleton}  
+        all_motor_groups = {**self.follower_arms, **self.finger_sensors, **self.full_skeleton}  
         action_names = self.get_motor_names(all_motor_groups)  
         state_names = self.get_motor_names(all_motor_groups)  
         

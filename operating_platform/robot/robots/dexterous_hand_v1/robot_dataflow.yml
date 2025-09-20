@@ -16,7 +16,7 @@ nodes:
   - id: camera_realsense  
     path: ../../components/camera_rgbd_realsense/main.py  
     inputs:  
-      tick: dora/timer/millis/33  
+      tick: dora/timer/millis/50  
     outputs:  
       - image  
       - image_depth  
@@ -32,7 +32,7 @@ nodes:
       tick: dora/timer/millis/50  
     outputs:  
       - left_image  
-      - right_image  
+      - depth_data  
     env:  
       DEVICE_SERIAL: 13601245
       IMAGE_WIDTH: 640  
@@ -55,7 +55,7 @@ nodes:
     path: dora_zeromq_image.py  
     inputs: 
       image_left: camera_zed/left_image
-      image_right: camera_zed/right_image
+      image_depth: camera_zed/depth_image
       image_top: camera_realsense/image
       image_top_depth: camera_realsense/image_depth
 

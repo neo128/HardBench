@@ -124,7 +124,11 @@ class Daemon:
     def cameras_info(self):
         cameras = {}
         for name, camera in self.robot.cameras.items():
-            cameras[name] = camera.camera_index
+            if hasattr(camera, 'camera_index'):  
+                cameras[name] = camera.camera_index  
+            else:  
+                # 为IntelRealSenseCamera或其他类型提供默认值  
+                cameras[name] = getattr(camera, 'device_serial', name)
         return cameras
     
     
