@@ -22,11 +22,11 @@ ks3_data_path_dev: http://120.92.91.171/
 ks3_data_bucket_dev: baai-eai-datasets-test
 ks3_data_target_dev: data
 
-machine_id_path_release: /home/machine/.config/baai_platform/machine_code
-machine_code_path_release: /home/machine/.config/baai_platform/unique_code
+machine_id_path_release: /home/ryu/.config/baai_platform/machine_code
+machine_code_path_release: /home/ryu/.config/baai_platform/unique_code
 
-machine_id_path_dev: /home/liuyou/.config/baai_platform/machine_code_dev
-machine_code_path_dev: /home/liuyou/.config/baai_platform/unique_code_dev
+machine_id_path_dev: /home/ryu/.config/baai_platform/machine_code_dev
+machine_code_path_dev: /home/ryu/.config/baai_platform/unique_code_dev
 
 now_robot_type: [aloha, pika, realman,dexterous_hand]
 

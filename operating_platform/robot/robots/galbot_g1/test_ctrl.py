@@ -145,7 +145,7 @@ class RobotSocket:
             # elif "singorix_omnilink/scaled_device_robot_data" in topic:
                 # print(f"📊 Sensor message size: {len(data_bytes)} bytes")
                 # print(f"pb_message: {pb_message}")
-                # show_sensor_from_proto(pb_message)
+                show_sensor_from_proto(pb_message)
                 self._parse_and_store_joint_data(pb_message)
 
             with self.state_lock:

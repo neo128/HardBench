@@ -37,16 +37,12 @@ def log_control_info(robot: Robot, dt_s, episode_index=None, frame_index=None, f
         #     key = f"read_leader_{name}_pos_dt_s"
         #     if key in robot.logs:
         #         log_dt(f"dt_R_leader_{name}", robot.logs[key])
-
-        for name in robot.follower_arms:
-        #     key = f"write_follower_{name}_goal_pos_dt_s"
-        #     if key in robot.logs:
-        #         log_dt(f"dt_W_foll_{name}", robot.logs[key])
-
-            key = f"read_follower_{name}_pos_dt_s"
-            if key in robot.logs:
-                log_dt(f"dt_R_foll_{name}", robot.logs[key])
-
+        if hasattr(robot, 'follower_arms') and robot.follower_arms is not None:
+            for name in robot.follower_arms:
+                key = f"read_follower_{name}_pos_dt_s"
+                if key in robot.logs:
+                    log_dt(f"dt_R_foll_{name}", robot.logs[key])
+        
         for name in robot.cameras:
             key = f"read_camera_{name}_dt_s"
             if key in robot.logs:
@@ -77,12 +73,15 @@ class Daemon:
         try:
             self.robot = make_robot_from_config(config)
         except Exception as e:
-            KeyboardInterrupt
-        print("Make robot succese")
+            print(f"Failed to create robot: {e}")
+            raise
+
+        print("Make robot success")
+        print(f"robot.type: {self.robot.robot_type}")
 
         if not self.robot.is_connected:
             self.robot.connect()
-        print("Connect robot succese")
+        print("Connect robot success")
 
         # self.thread.start()
         # self.running = True
