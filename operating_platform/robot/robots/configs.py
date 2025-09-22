@@ -864,6 +864,25 @@ class GalbotG1RobotConfig(DDSManipulatorRobotConfig):
                     "joint_1": [1, "galbot_motor"],
                 },
             ),
+            "leg": DDSMotorsBusConfig(
+                topic="singorix/wbcs/sensor",
+                group="leg",
+                motors={
+                    "joint_1": [1, "galbot_motor"],
+                    "joint_2": [2, "galbot_motor"],
+                    "joint_3": [3, "galbot_motor"],
+                    "joint_4": [4, "galbot_motor"],
+                    "joint_5": [5, "galbot_motor"],
+                },
+            ),
+            "head": DDSMotorsBusConfig(
+                topic="singorix/wbcs/sensor",
+                group="head",
+                motors={
+                    "joint_1": [1, "galbot_motor"],
+                    "joint_2": [2, "galbot_motor"],
+                },
+            ),
         }
     )
 

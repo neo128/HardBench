@@ -115,6 +115,12 @@ class RobotSocket:
             "right_gripper": {},
             "left_gripper": {}
         }
+        self.leg_data = {
+            "leg": {},
+        }
+        self.head_data = {
+            "head": {},
+        }
 
         # Protobuf 类型映射
         self.protobuf_type_map = {
@@ -274,6 +280,10 @@ class RobotSocket:
                     self.gripper_data["right_gripper"] = joint_data
                 elif group_name == "left_gripper":
                     self.gripper_data["left_gripper"] = joint_data
+                elif group_name == "leg":
+                    self.leg_data["leg"] = joint_data
+                elif group_name == "head":
+                    self.head_data["head"] = joint_data
 
     def get_arm_state(self, side):
         key = f"{side}_arm"
@@ -391,6 +401,8 @@ class GalbotG1Manipulator:
         self.follower_motors['left_arm'] = self.config.follower_motors["left_arm"]
         self.follower_motors['right_gripper'] = self.config.follower_motors["right_gripper"]
         self.follower_motors['left_gripper'] = self.config.follower_motors["left_gripper"]
+        self.follower_motors['leg'] = self.config.follower_motors["leg"]
+        self.follower_motors['head'] = self.config.follower_motors["head"]
 
         self.cameras = make_cameras_from_configs(self.config.cameras)
         
@@ -464,11 +476,20 @@ class GalbotG1Manipulator:
             # ),
             (
                 lambda: all(
-                    any(name in key for key in self.robot_socket.arm_joint_data) or any(name in key for key in self.robot_socket.gripper_data)
+                    any(name in key for key in self.robot_socket.arm_joint_data)
+                    or any(name in key for key in self.robot_socket.gripper_data)
+                    or any(name in key for key in self.robot_socket.leg_data)
+                    or any(name in key for key in self.robot_socket.head_data)
                     for name in self.follower_motors
                 ),
-                lambda: [name for name in self.follower_motors if not any(name in key for key in self.robot_socket.arm_joint_data) and not any(name in key for key in self.robot_socket.gripper_data)],
-                "等待从臂关节角度超时"
+                lambda: [
+                    name for name in self.follower_motors
+                    if not any(name in key for key in self.robot_socket.arm_joint_data)
+                    and not any(name in key for key in self.robot_socket.gripper_data)
+                    and not any(name in key for key in self.robot_socket.leg_data)
+                    and not any(name in key for key in self.robot_socket.head_data)
+                ],
+                "等待机器人关节角度超时"
             ),
         ]
 
@@ -545,8 +566,13 @@ class GalbotG1Manipulator:
         arm_data_types = ["从臂关节角度",]
         for i, data_type in enumerate(arm_data_types, 1):
             if conditions[i][0]():
-                arm_received = [name for name in self.follower_motors 
-                            if any(name in key for key in (self.robot_socket.arm_joint_data,)[i-1]) or any(name in key for key in (self.robot_socket.gripper_data,)[i-1])]
+                arm_received = [
+                    name for name in self.follower_motors 
+                    if any(name in key for key in (self.robot_socket.arm_joint_data,)[i-1])
+                    or any(name in key for key in (self.robot_socket.gripper_data,)[i-1])
+                    or any(name in key for key in (self.robot_socket.leg_data,)[i-1])
+                    or any(name in key for key in (self.robot_socket.head_data,)[i-1])
+                ]
                 success_messages.append(f"{data_type}: {', '.join(arm_received)}")
         
         # 打印成功连接信息
@@ -635,7 +661,68 @@ class GalbotG1Manipulator:
                 byte_array = torch.tensor(positions, dtype=torch.float32)
                 byte_array = byte_array / 100.0
                 
-                follower_joint[name] = byte_array
+                follower_gripper[name] = byte_array
+                
+            except Exception as e:
+                print(f"Error processing joint data for {name}: {e}")
+                continue
+            
+            self.logs[f"read_follower_{name}_joint_dt_s"] = time.perf_counter() - now
+
+
+        follower_leg = {}
+        for name in self.follower_motors:
+            now = time.perf_counter()
+            
+            # 查找匹配的关节数据
+            match_name = None
+            for potential_match in self.robot_socket.leg_data:
+                if name in potential_match:
+                    match_name = potential_match
+                    break
+            
+            if match_name is None:
+                continue  # 如果没有匹配项则跳过
+            
+            try:
+                # 使用列表推导式一次性构建数组
+                joint_data = self.robot_socket.leg_data[match_name]
+                positions = [value["position"] for value in joint_data.values()]
+                
+                # 直接使用torch从列表创建张量
+                byte_array = torch.tensor(positions, dtype=torch.float32)
+                
+                follower_leg[name] = byte_array
+                
+            except Exception as e:
+                print(f"Error processing joint data for {name}: {e}")
+                continue
+            
+            self.logs[f"read_follower_{name}_joint_dt_s"] = time.perf_counter() - now
+
+        follower_head = {}
+        for name in self.follower_motors:
+            now = time.perf_counter()
+            
+            # 查找匹配的关节数据
+            match_name = None
+            for potential_match in self.robot_socket.head_data:
+                if name in potential_match:
+                    match_name = potential_match
+                    break
+            
+            if match_name is None:
+                continue  # 如果没有匹配项则跳过
+            
+            try:
+                # 使用列表推导式一次性构建数组
+                joint_data = self.robot_socket.head_data[match_name]
+                positions = [value["position"] for value in joint_data.values()]
+                
+                # 直接使用torch从列表创建张量
+                byte_array = torch.tensor(positions, dtype=torch.float32)
+                
+                follower_head[name] = byte_array
                 
             except Exception as e:
                 print(f"Error processing joint data for {name}: {e}")
@@ -667,6 +754,10 @@ class GalbotG1Manipulator:
                 state.append(follower_joint[name])
             if name in follower_gripper:
                 state.append(follower_gripper[name])
+            if name in follower_leg:
+                state.append(follower_leg[name])
+            if name in follower_head:
+                state.append(follower_head[name])
         state = torch.cat(state)
 
         #将关节目标位置添加到 action 列表中
@@ -676,6 +767,10 @@ class GalbotG1Manipulator:
                 action.append(follower_joint[name])
             if name in follower_gripper:
                 action.append(follower_gripper[name])
+            if name in follower_leg:
+                action.append(follower_leg[name])
+            if name in follower_head:
+                action.append(follower_head[name])
         action = torch.cat(action)
 
         # Capture images from cameras
