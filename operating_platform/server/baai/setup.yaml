@@ -1,7 +1,7 @@
 robot_type: aloha
 device_server_ip: http://localhost:8088
 device_server_port: 8088
-device_data_path: /home/liuyou/Documents/wanx-studio-dataset-example
+device_data_path: /home/ryu/DoRobot/dataset
 
 device_server_type: dev
 platform_server_ip_release: https://ei2rmd.baai.ac.cn/api
@@ -22,11 +22,11 @@ ks3_data_path_dev: http://120.92.91.171/
 ks3_data_bucket_dev: baai-eai-datasets-test
 ks3_data_target_dev: data
 
-machine_id_path_release: /home/machine/.config/baai_platform/machine_code
-machine_code_path_release: /home/machine/.config/baai_platform/unique_code
+machine_id_path_release: /home/ryu/DoRobot/machine/.config/baai_platform/machine_code
+machine_code_path_release: /home/ryu/DoRobot/machine/.config/baai_platform/unique_code
 
-machine_id_path_dev: /home/liuyou/.config/baai_platform/machine_code_dev
-machine_code_path_dev: /home/liuyou/.config/baai_platform/unique_code_dev
+machine_id_path_dev: /home/ryu/DoRobot/machine/.config/baai_platform/machine_code_dev
+machine_code_path_dev: /home/ryu/DoRobot/machine/.config/baai_platform/unique_code_dev
 
 now_robot_type: [aloha, pika, realman,dexterous_hand]
 
