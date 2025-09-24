@@ -203,7 +203,7 @@ def validate_session(_dir, session_id,
                     info_json="info.json",
                     image_sample_interval=30,
                     image_change_threshold=0.98,
-                    threshold_percentage=0.3):
+                    threshold_percentage=0.6):
     """验证单个会话的数据，返回结构化验证结果"""
     print(f"正在验证会话: {session_id}")
     
