@@ -37,7 +37,7 @@ from operating_platform.core.record import Record, RecordConfig
 from operating_platform.core.replay import DatasetReplayConfig, ReplayConfig, replay
 
 import asyncio, aiohttp
-DEFAULT_FPS = 20
+DEFAULT_FPS = 30
 RERUN_WEB_PORT = 9195
 RERUN_WS_PORT = 9285
 
@@ -138,7 +138,7 @@ class Coordinator:
         self.replaying = False
         self.saveing = False
 
-        self.cameras = {"image_left":1, "image_right": 2, "image_top": 3}
+        self.cameras = {"image_top": 1, "image_right": 2}
 
         # 2. 注册异步回调
         self.sio.on('HEARTBEAT_RESPONSE', self.__on_heartbeat_response_handle)
@@ -563,12 +563,9 @@ async def async_main(cfg: ControlPipelineConfig):
                     if "image" in key and "depth" not in key:
                         img = cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR)
                         name = key[len("observation.images."):]
-                        # tasks.append(
-                        #     coordinator.update_stream_async(name, img)
-                        # )
-                        if not is_headless():
-                            cv2.imshow(name, img)
-                            cv2.waitKey(1)
+                        tasks.append(
+                            coordinator.update_stream_async(name, img)
+                        )
                 if tasks:
                     # 并发地发；只等待 0.2 s，不阻塞主循环
                     try:

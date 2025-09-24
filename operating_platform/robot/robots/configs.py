@@ -1011,26 +1011,26 @@ class DexterousHandRobotConfig(RobotConfig):
       
     cameras: dict[str, CameraConfig] = field(  
         default_factory=lambda: {  
-            "image_top": IntelRealSenseCameraConfig( 
-                serial_number=337122071807,  
+            "image_top": OpenCVCameraConfig( 
+                camera_index=0,  
                 fps=30,  
                 width=640,  
                 height=480,  
             ),
-            "image_top_depth": IntelRealSenseCameraConfig( 
-                serial_number=337122071807,
+            "image_top_depth": OpenCVCameraConfig( 
+                camera_index=1,
                 fps=30,  
                 width=640,  
                 height=480,  
             ),
             "image_left": OpenCVCameraConfig(
-                camera_index=1,
+                camera_index=2,
                 fps=30,
                 width=640,
                 height=480,
             ),
             "image_depth": OpenCVCameraConfig(
-                camera_index=2,
+                camera_index=3,
                 fps=30,
                 width=640,
                 height=480,
