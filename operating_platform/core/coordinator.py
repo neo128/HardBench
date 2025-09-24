@@ -231,8 +231,8 @@ class Coordinator:
             task_name = msg.get('task_name')
             task_data_id = msg.get('task_data_id')
             countdown_seconds = msg.get('countdown_seconds', 3) 
-            task_dir = f"{task_name}_{task_id}"
-            # repo_id = f"{task_name}_{task_id}_{task_data_id}"
+            # task_dir = f"{task_name}_{task_id}"
+            repo_id = f"{task_name}_{task_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
 
@@ -240,12 +240,12 @@ class Coordinator:
             dataset_path = DOROBOT_DATASET
 
             git_branch_name = get_current_git_branch()
-            if "release" in git_branch_name:
-                target_dir = dataset_path / date_str / "user" / task_dir
-            elif "dev"  in git_branch_name:
-                target_dir = dataset_path / date_str / "dev" / task_dir
+            if "dev" in git_branch_name:
+                target_dir = dataset_path / date_str / "dev" / repo_id
+            elif "release"  in git_branch_name:
+                target_dir = dataset_path / date_str / "user" / repo_id
             else:
-                target_dir = dataset_path / date_str / "dev" / task_dir
+                target_dir = dataset_path / date_str / "dev" / repo_id
 
             # 判断是否存在对应文件夹以决定是否启用恢复模式
             resume = False
@@ -257,9 +257,9 @@ class Coordinator:
                 # 检查目标文件夹是否存在且为目录
                 if target_dir.exists() and target_dir.is_dir():
                     resume = True
-                    logging.info(f"Found existing directory for repo_id '{task_dir}'. Resuming operation.")
+                    logging.info(f"Found existing directory for repo_id '{repo_id}'. Resuming operation.")
 
-                    # logging.info(f"Found existing directory for repo_id '{task_dir}'. Delete directory.")
+                    # logging.info(f"Found existing directory for repo_id '{repo_id}'. Delete directory.")
                     # shutil.rmtree(target_dir)
                     # time.sleep(0.5) # make sure delete success.
                 else:
@@ -351,20 +351,20 @@ class Coordinator:
             task_id = msg.get('task_id')
             task_name = msg.get('task_name')
             task_data_id = msg.get('task_data_id')
-            task_dir = f"{task_name}_{task_id}"
-            # repo_id = f"{task_name}_{task_id}_{task_data_id}"
+            # task_dir = f"{task_name}_{task_id}"
+            repo_id = f"{task_name}_{task_id}"
 
             date_str = datetime.now().strftime("%Y%m%d")
 
             # 构建目标目录路径
             dataset_path = DOROBOT_DATASET
             git_branch_name = get_current_git_branch()
-            if "release" in git_branch_name:
-                target_dir = dataset_path / date_str / "user" / task_dir
-            elif "dev"  in git_branch_name:
-                target_dir = dataset_path / date_str / "dev" / task_dir
+            if "dev" in git_branch_name:
+                target_dir = dataset_path / date_str / "dev" / repo_id
+            elif "release"  in git_branch_name:
+                target_dir = dataset_path / date_str / "user" / repo_id
             else:
-                target_dir = dataset_path / date_str / "dev" / task_dir
+                target_dir = dataset_path / date_str / "dev" / repo_id
 
             ep_index = find_epindex_from_dataid_json(target_dir, task_data_id)
             
