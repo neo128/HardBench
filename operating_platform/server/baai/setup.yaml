@@ -28,5 +28,5 @@ machine_code_path_release: /home/ryu/DoRobot/machine/.config/baai_platform/uniqu
 machine_id_path_dev: /home/ryu/DoRobot/machine/.config/baai_platform/machine_code_dev
 machine_code_path_dev: /home/ryu/DoRobot/machine/.config/baai_platform/unique_code_dev
 
-now_robot_type: [aloha, pika, realman,dexterous_hand]
+now_robot_type: [aloha, pika, realman, dexterous_hand]
 
