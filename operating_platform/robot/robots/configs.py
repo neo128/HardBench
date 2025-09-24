@@ -941,7 +941,7 @@ class GalbotG1RobotConfig(DDSManipulatorRobotConfig):
 class DexterousHandRobotConfig(RobotConfig):
     left_full_skeleton = DexterousHandMotorsBusConfig(
         port="left_full_skeleton", 
-        motor={  
+        motors={  
             "point_1": [1, "finger-joint"],
             "point_2": [2, "finger-joint"],
             "point_3": [3, "finger-joint"],
@@ -1186,26 +1186,26 @@ class DexterousHandRobotConfig(RobotConfig):
 
     cameras: dict[str, CameraConfig] = field(  
         default_factory=lambda: {  
-            "image_top": IntelRealSenseCameraConfig( 
-                serial_number=337122071807,  
+            "image_top": OpenCVCameraConfig( 
+                camera_index=0,  
                 fps=30,  
                 width=640,  
                 height=480,  
             ),
             "image_top_depth": OpenCVCameraConfig( 
-                camera_index=2,  
+                camera_index=1,
                 fps=30,  
                 width=640,  
                 height=480,  
             ),
             "image_left": OpenCVCameraConfig(
-                camera_index=0,
+                camera_index=2,
                 fps=30,
                 width=640,
                 height=480,
             ),
-            "image_right": OpenCVCameraConfig(
-                camera_index=1,
+            "image_depth": OpenCVCameraConfig(
+                camera_index=3,
                 fps=30,
                 width=640,
                 height=480,
