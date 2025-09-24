@@ -8,7 +8,7 @@
 # CONDA_ENV3="dr-view-rerun"
 
 # 配置参数
-CONTAINER_NAME="operating_platform"
+CONTAINER_NAME="wanx-robot-aloha-container"
 PROJECT_DIR="/root/WanX-EI-Studio"
 CONDA_ENV1="op-robot-aloha"
 CONDA_ENV2="op"
@@ -135,17 +135,17 @@ rm -f .pids
 
 # 并行执行任务
 log "启动数据流..."
-execute_in_container "cd $PROJECT_DIR && $CONDA_ACTIVATE $CONDA_ENV1 && dora run $DATAFLOW_PATH" "dataflow.log"
+execute_in_container "cd $PROJECT_DIR && $CONDA_ACTIVATE $CONDA_ENV1 && dora run $DATAFLOW_PATH" "logs/dataflow.log"
 
 sleep 5  # 简单的依赖等待
 
 log "启动协调器..."
-execute_in_container "cd $PROJECT_DIR && $CONDA_ACTIVATE $CONDA_ENV2 && python operating_platform/core/coordinator.py --robot.type=aloha" "coordinator.log"
+execute_in_container "cd $PROJECT_DIR && $CONDA_ACTIVATE $CONDA_ENV2 && python operating_platform/core/coordinator.py --robot.type=aloha" "logs/coordinator.log"
 
 sleep 2  # 简单的依赖等待
 
 log "启动Rerun 3D View..."
-execute_in_container "cd $PROJECT_DIR && $CONDA_ACTIVATE $CONDA_ENV3 && cd test/piper && dora run arms_only_web.yml" "rerun_3d_view.log"
+execute_in_container "cd $PROJECT_DIR && $CONDA_ACTIVATE $CONDA_ENV3 && cd test/piper && dora run arms_only_web.yml" "logs/rerun_3d_view.log"
 
 
 log "打开Rerun 3D View - 请在浏览器打开"http://localhost:9060?url=rerun%2Bhttp%3A%2F%2Flocalhost%3A9876%2Fproxy""
