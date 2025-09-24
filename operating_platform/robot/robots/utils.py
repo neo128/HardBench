@@ -25,6 +25,7 @@ from operating_platform.robot.robots.configs import (
     SO101RobotConfig,
     GALAXEARobotConfig,
     DexterousHandRobotConfig,
+    GalbotG1RobotConfig,
 )
 import platform
 import time
@@ -112,6 +113,8 @@ def make_robot_config(robot_type: str, **kwargs) -> RobotConfig:
         return SO101RobotConfig(**kwargs)
     elif robot_type == "galaxea":
         return GALAXEARobotConfig(**kwargs)
+    elif robot_type == "galbot_g1":
+        return GalbotG1RobotConfig(**kwargs)
     else:
         raise ValueError(f"Robot type '{robot_type}' is not available.")
 
@@ -145,8 +148,14 @@ def make_robot_from_config(config: RobotConfig):
         return DexterousHandManipulator(config)
     elif isinstance(config, GALAXEARobotConfig):
         from operating_platform.robot.robots.galaxea_v1.manipulator import GALAXEAManipulator
-        print("In RealmanRobotConfig")
+        print("In GALAXEARobotConfig")
         return GALAXEAManipulator(config)
+    
+    elif isinstance(config, GalbotG1RobotConfig):
+        from operating_platform.robot.robots.galbot_g1.manipulator import GalbotG1Manipulator
+        print("In GalbotG1RobotConfig")
+        return GalbotG1Manipulator(config)
+    
     else:
         print("Not match robot")
         raise ValueError(f"Robot type is not available.")

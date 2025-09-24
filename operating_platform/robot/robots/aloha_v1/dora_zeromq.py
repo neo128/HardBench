@@ -5,6 +5,7 @@ import time
 from dora import Node
 import numpy as np
 import queue
+import json
 
 node = Node()
 
@@ -92,6 +93,7 @@ if __name__ == "__main__":
             if event["type"] == "INPUT":
                 event_id = event["id"]
                 buffer_bytes = event["value"].to_numpy().tobytes()
+                meta_bytes = json.dumps(event["metadata"]).encode('utf-8')
                             
                 # 处理接收到的数据
                 # print(f"Send event: {event_id}")
@@ -101,7 +103,8 @@ if __name__ == "__main__":
                     try:
                         socket_image.send_multipart([
                             event_id.encode('utf-8'),
-                            buffer_bytes
+                            buffer_bytes,
+                            meta_bytes
                         ], flags=zmq.NOBLOCK)
                     except zmq.Again:
                         pass
@@ -109,7 +112,8 @@ if __name__ == "__main__":
                     try:
                         socket_piper.send_multipart([
                             event_id.encode('utf-8'),
-                            buffer_bytes
+                            buffer_bytes,
+                            meta_bytes
                         ], flags=zmq.NOBLOCK)
                     except zmq.Again:
                         pass

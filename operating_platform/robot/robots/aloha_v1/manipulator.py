@@ -18,6 +18,7 @@ from typing import Any
 
 import threading
 import cv2
+import json
 
 
 from operating_platform.robot.robots.utils import RobotDeviceNotConnectedError
@@ -79,11 +80,30 @@ def recv_img_server():
 
             event_id = message_parts[0].decode('utf-8')
             buffer_bytes = message_parts[1]
+            metadata = json.loads(message_parts[2].decode('utf-8'))
 
             if 'image' in event_id:
                 # 解码图像
                 img_array = np.frombuffer(buffer_bytes, dtype=np.uint8)
-                frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                encoding = metadata["encoding"].lower()
+                width = metadata["width"]
+                height = metadata["height"]
+
+                if encoding == "bgr8":
+                    channels = 3
+                    frame = (
+                        img_array.reshape((height, width, channels))
+                        .copy()  # Copy So that we can add annotation on the image
+                    )
+                elif encoding == "rgb8":
+                    channels = 3
+                    frame = (img_array.reshape((height, width, channels)))
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+                elif encoding in ["jpeg", "jpg", "jpe", "bmp", "webp", "png"]:
+                    channels = 3
+                    frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 
                 if frame is not None:
@@ -190,6 +210,8 @@ class AlohaManipulator:
         self.follower_arms['right'] = self.config.right_leader_arm.motors
         self.follower_arms['left'] = self.config.left_leader_arm.motors
 
+        self.connect_excluded_cameras = ["image_pika_pose"]
+
         self.cameras = make_cameras_from_configs(self.config.cameras)
         self.microphones = self.config.microphones
 
@@ -238,66 +260,155 @@ class AlohaManipulator:
         }
     
     def connect(self):
-        timeout = 5  # 超时时间（秒）
-        start_time = time.perf_counter()
+        # timeout = 5  # 超时时间（秒）
+        # start_time = time.perf_counter()
 
-        while True:
-            # 检查是否已获取所有摄像头的图像
-            if all(name in recv_images for name in self.cameras):
-                break
+        # while True:
+        #     # 检查是否已获取所有摄像头的图像
+        #     if all(name in recv_images for name in self.cameras):
+        #         break
 
-            # 超时检测
-            if time.perf_counter() - start_time > timeout:
-                raise TimeoutError("等待摄像头图像超时")
+        #     # 超时检测
+        #     if time.perf_counter() - start_time > timeout:
+        #         raise TimeoutError("等待摄像头图像超时")
 
-            # 可选：减少CPU占用
-            time.sleep(0.01)
+        #     # 可选：减少CPU占用
+        #     time.sleep(0.01)
         
-        start_time = time.perf_counter()
-        while True:
-            # 检查是否已获取所有机械臂的关节角度
-            if any(
-                any(name in key for key in recv_follower_jointstats)
-                for name in self.follower_arms
-            ):
-                break
-
-            # 超时检测
-            if time.perf_counter() - start_time > timeout:
-                raise TimeoutError("等待机械臂关节数据超时")
-
-            # 可选：减少CPU占用
-            time.sleep(0.01)
-
-        start_time = time.perf_counter()
-        while True:
-            if any(
-                any(name in key for key in recv_follower_pose)
-                for name in self.follower_arms
-            ):
-                break
-
-            # 超时检测
-            if time.perf_counter() - start_time > timeout:
-                raise TimeoutError("等待机械臂末端位姿超时")
-
-            # 可选：减少CPU占用
-            time.sleep(0.01)
-
         # start_time = time.perf_counter()
         # while True:
+        #     # 检查是否已获取所有机械臂的关节角度
         #     if any(
-        #         any(name in key for key in recv_follower_gripper)
+        #         any(name in key for key in recv_follower_jointstats)
         #         for name in self.follower_arms
         #     ):
         #         break
 
         #     # 超时检测
         #     if time.perf_counter() - start_time > timeout:
-        #         raise TimeoutError("等待机械臂夹爪超时")
+        #         raise TimeoutError("等待机械臂关节数据超时")
 
         #     # 可选：减少CPU占用
         #     time.sleep(0.01)
+
+        # start_time = time.perf_counter()
+        # while True:
+        #     if any(
+        #         any(name in key for key in recv_follower_pose)
+        #         for name in self.follower_arms
+        #     ):
+        #         break
+
+        #     # 超时检测
+        #     if time.perf_counter() - start_time > timeout:
+        #         raise TimeoutError("等待机械臂末端位姿超时")
+
+        #     # 可选：减少CPU占用
+        #     time.sleep(0.01)
+
+        timeout = 50  # 统一的超时时间（秒）
+        start_time = time.perf_counter()
+
+        conditions = [
+            (
+                lambda: all(name in recv_images for name in self.cameras if name not in self.connect_excluded_cameras),
+                lambda: [name for name in self.cameras if name not in recv_images],
+                "等待摄像头图像超时"
+            ),
+            (
+                lambda: all(
+                    any(name in key for key in recv_follower_jointstats)
+                    for name in self.follower_arms
+                ),
+                lambda: [name for name in self.follower_arms if not any(name in key for key in recv_follower_jointstats)],
+                "等待机械臂从臂关节超时"
+            ),
+            (
+                lambda: all(
+                    any(name in key for key in recv_master_jointstats)
+                    for name in self.follower_arms
+                ),
+                lambda: [name for name in self.follower_arms if not any(name in key for key in recv_master_jointstats)],
+                "等待机械臂主臂关节超时"
+            )
+        ]
+
+        # 跟踪每个条件是否已完成
+        completed = [False] * len(conditions)
+
+        while True:
+            # 检查每个未完成的条件
+            for i in range(len(conditions)):
+                if not completed[i]:
+                    condition_func = conditions[i][0]
+                    if condition_func():
+                        completed[i] = True
+
+            # 如果所有条件都已完成，退出循环
+            if all(completed):
+                break
+
+            # 检查是否超时
+            if time.perf_counter() - start_time > timeout:
+                failed_messages = []
+                for i in range(len(completed)):
+                    if not completed[i]:
+                        condition_func, get_missing, base_msg = conditions[i]
+                        missing = get_missing()
+
+                        # 重新检查条件是否满足（可能刚好在最后一次检查后满足）
+                        if condition_func():
+                            completed[i] = True
+                            continue
+
+                        # 如果没有 missing，也视为满足
+                        if not missing:
+                            completed[i] = True
+                            continue
+
+                        # 计算已接收的项
+                        if i == 0:
+                            received = [name for name in self.cameras if name not in missing]
+                        else:
+                            received = [name for name in self.follower_arms if name not in missing]
+
+                        # 构造错误信息
+                        msg = f"{base_msg}: 未收到 [{', '.join(missing)}]; 已收到 [{', '.join(received)}]"
+                        failed_messages.append(msg)
+
+                # 如果所有条件都已完成，break
+                if not failed_messages:
+                    break
+
+                # 抛出超时异常
+                raise TimeoutError(f"连接超时，未满足的条件: {'; '.join(failed_messages)}")
+
+            # 减少 CPU 占用
+            time.sleep(0.01)
+
+        # ===== 新增成功打印逻辑 =====
+        success_messages = []
+        # 摄像头连接状态
+        if conditions[0][0]():
+            cam_received = [name for name in self.cameras 
+                        if name in recv_images and name not in self.connect_excluded_cameras]
+            success_messages.append(f"摄像头: {', '.join(cam_received)}")
+        
+        # 机械臂数据状态
+        arm_data_types = ["主臂关节角度", "从臂关节角度"]
+        for i, data_type in enumerate(arm_data_types, 1):
+            if conditions[i][0]():
+                arm_received = [name for name in self.follower_arms 
+                            if any(name in key for key in (recv_master_jointstats, recv_follower_jointstats)[i-1])]
+                success_messages.append(f"{data_type}: {', '.join(arm_received)}")
+        
+        # 打印成功连接信息
+        print("\n[连接成功] 所有设备已就绪:")
+        for msg in success_messages:
+            print(f"  - {msg}")
+        print(f"  总耗时: {time.perf_counter() - start_time:.2f}秒\n")
+        # ===========================
+
 
         self.is_connected = True
     
