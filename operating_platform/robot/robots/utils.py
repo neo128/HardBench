@@ -25,6 +25,7 @@ from operating_platform.robot.robots.configs import (
     SO101RobotConfig,
     GALAXEARobotConfig,
     GalbotG1RobotConfig,
+    DexterousHandMotorsBusConfig,
 )
 import platform
 import time
@@ -142,6 +143,11 @@ def make_robot_from_config(config: RobotConfig):
         from operating_platform.robot.robots.realman_v1.manipulator import RealmanManipulator
         print("In RealmanRobotConfig")
         return RealmanManipulator(config)
+    
+    elif isinstance(config, DexterousHandMotorsBusConfig):
+        from operating_platform.robot.robots.dexterous_hand_v1.manipulator import DexterousHandManipulator
+        print("In DexterousHandMotorsBusConfig")
+        return DexterousHandManipulator(config)
     
     elif isinstance(config, GALAXEARobotConfig):
         from operating_platform.robot.robots.galaxea_v1.manipulator import GALAXEAManipulator

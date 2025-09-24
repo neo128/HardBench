@@ -83,7 +83,7 @@ def validate_timestamps(df, fps):
     return True, None
 
 
-def validate_action_data(df, joint_change_thresholds):
+def validate_action_data(df, joint_change_thresholds,cut_list=None):
     """校验动作数据质量"""
     if 'action' not in df.columns:
         return False, "Parquet文件中缺少'action'列"
@@ -99,9 +99,8 @@ def validate_action_data(df, joint_change_thresholds):
 
     # 检查相邻帧突变
     diff = np.abs(action_data[1:]) - np.abs(action_data[:-1])
-
     # 只有当阈值 >= 0.1 时才检查突变
-    threshold_mask = joint_change_thresholds >= 0.1  # 形状：(n_joints,)
+    threshold_mask = joint_change_thresholds >= 0.5  # 形状：(n_joints,)
     violations = (diff > joint_change_thresholds) & threshold_mask  # 仅当阈值 >= 0.1 时才可能触发违规
     n_violations_per_frame = np.sum(violations, axis=1)
     
@@ -111,16 +110,34 @@ def validate_action_data(df, joint_change_thresholds):
         exceeding_dims = np.where(violations[problematic_frame_idx - 1])[0]
         error_msg = f"检测到 {problematic_frame_idx} 帧发生突变（无效动作），位于索引: {exceeding_dims}"
         return False, error_msg
-
-    # 检查重复动作
-    unique_actions, counts = np.unique(action_data, axis=0, return_counts=True)
-    duplicate_ratio = 1 - (len(unique_actions) / len(action_data))
-    most_common_action = unique_actions[np.argmax(counts)]
-    max_count = max(counts)
-    most_common_ratio = max_count / len(action_data)
     
+    action_data_subset_list = []
+    most_common_ratio_list = []
+    trigger_cut = None
+    if cut_list:
+        for cut in cut_list:
+             # 检查 cut 是否越界
+            if cut[0] >= action_data.shape[1] or cut[1] > action_data.shape[1] or cut[0] < 0 or cut[1] <= cut[0]:
+                print(f"Warning: 跳过越界的 cut 区间: {cut}")
+                continue  # 跳过无效的 cut
+            action_data_subset = action_data[:, cut[0]:cut[1]]  
+            action_data_subset_list.append(action_data_subset)
+    if action_data_subset_list:
+        for action_data_sub in action_data_subset_list:
+            # 检查重复动作
+            unique_actions, counts = np.unique(action_data_sub, axis=0, return_counts=True)
+            max_count = max(counts)
+            most_common_ratio = max_count / len(action_data)
+            most_common_ratio_list.append(most_common_ratio)
+        max_ratio_idx = most_common_ratio_list.index(max(most_common_ratio_list))
+        most_common_ratio = most_common_ratio_list[max_ratio_idx]
+        trigger_cut = cut_list[max_ratio_idx]  # 记录对应的 cut[0], cut[1]
+    else:
+        unique_actions, counts = np.unique(action_data, axis=0, return_counts=True)
+        max_count = max(counts)
+        most_common_ratio = max_count / len(action_data)
     if most_common_ratio > 0.9:
-        error_msg = f"检测到{most_common_ratio:.3%}帧动作重复"
+        error_msg = f"检测到{most_common_ratio:.3%}帧{trigger_cut}动作重复"
         return False, error_msg
     msg = f"检测到{most_common_ratio:.3%}帧动作重复"
     return True, msg
@@ -206,7 +223,8 @@ def validate_session(_dir, session_id,
                     info_json="info.json",
                     image_sample_interval=30,
                     image_change_threshold=0.98,
-                    threshold_percentage=0.5):
+                    threshold_percentage=0.5,
+                    cut_list= None): # cut_list举例,用来切片action信息进行比对  [(0,75),(75,150),(150,201)]
     """验证单个会话的数据，返回结构化验证结果"""
     print(f"正在验证会话: {session_id}")
     
@@ -273,7 +291,7 @@ def validate_session(_dir, session_id,
     
     
     # 验证动作数据质量
-    valid, msg = validate_action_data(df, joint_change_thresholds)
+    valid, msg = validate_action_data(df, joint_change_thresholds,cut_list)
     if not valid:
         verification_result["action_frame_rate"] = "no pass"
         verification_result["action_frame_rate_comment"] = msg
@@ -636,6 +654,17 @@ def check_disk_space(min_gb=1):
 #     print(data_size(fold_path,data))
 #     print(data_duration(fold_path,data))
         
+if __name__ == '__main__':
+    _dir = "/home/liuyou/Documents/DoRobot/dataset/20250918/dev/倒水_111_277/倒水_111_277_6276"
+    session_id = "episode_000000"
+    validate_session(_dir, session_id,  episodes_stats="episodes_stats.jsonl", 
+                    info_json="info.json",
+                    image_sample_interval=30,
+                    image_change_threshold=0.98,
+                    threshold_percentage=0.5,
+                    cut_list= None)
+    
+    
 
 
 

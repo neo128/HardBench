@@ -33,6 +33,7 @@ from operating_platform.robot.robots.com_configs.motors import (
     MotorsBusConfig,
     RosMotorsBusConfig,
     DDSMotorsBusConfig,
+    DexterousHandMotorsBusConfig,
 )
 
 
@@ -186,27 +187,27 @@ class AlohaRobotConfig(RobotConfig):
             "image_left": OpenCVCameraConfig(
                 camera_index=3,
                 fps=30,
-                width=640,
-                height=480,
+                width=320,
+                height=240,
             ),
-            "image_depth_top": OpenCVCameraConfig(
-                camera_index=4,
-                fps=30,
-                width=640,
-                height=400,
-            ),
-            "image_depth_right": OpenCVCameraConfig(
-                camera_index=5,
-                fps=30,
-                width=640,
-                height=400,
-            ),
-            "image_depth_left": OpenCVCameraConfig(
-                camera_index=6,
-                fps=30,
-                width=640,
-                height=400,
-            ),
+            # "image_depth_top": OpenCVCameraConfig(
+            #     camera_index=4,
+            #     fps=30,
+            #     width=640,
+            #     height=400,
+            # ),
+            # "image_depth_right": OpenCVCameraConfig(
+            #     camera_index=5,
+            #     fps=30,
+            #     width=640,
+            #     height=400,
+            # ),
+            # "image_depth_left": OpenCVCameraConfig(
+            #     camera_index=6,
+            #     fps=30,
+            #     width=640,
+            #     height=400,
+            # ),
         }
     )
 
@@ -614,6 +615,12 @@ class SO101RobotConfig(ManipulatorRobotConfig):
                 width=640,
                 height=480,
             ),
+            "image_top_dep": OpenCVCameraConfig(
+                camera_index=2,
+                fps=30,
+                width=640,
+                height=480,
+            ),
         }
     )
 
@@ -927,3 +934,287 @@ class GalbotG1RobotConfig(DDSManipulatorRobotConfig):
             # "audio_left": 4,
         }
     )
+
+
+@RobotConfig.register_subclass("dexterous_hand_v1")  
+@dataclass  
+class DexterousHandRobotConfig(RobotConfig):
+    left_full_skeleton = DexterousHandMotorsBusConfig(
+        port="left_full_skeleton", 
+        motor={  
+            "point_1": [1, "finger-joint"],
+            "point_2": [2, "finger-joint"],
+            "point_3": [3, "finger-joint"],
+            "point_4": [4, "finger-joint"],
+            "point_5": [5, "finger-joint"],
+            "point_6": [6, "finger-joint"],
+            "point_7": [7, "finger-joint"],
+            "point_8": [8, "finger-joint"],
+            "point_9": [9, "finger-joint"],
+            "point_10": [10, "finger-joint"],
+            "point_11": [11, "finger-joint"],
+            "point_12": [12, "finger-joint"],
+            "point_13": [13, "finger-joint"],
+            "point_14": [14, "finger-joint"],
+            "point_15": [15, "finger-joint"],
+            "point_16": [16, "finger-joint"],
+            "point_17": [17, "finger-joint"],
+            "point_18": [18, "finger-joint"],
+            "point_19": [19, "finger-joint"],
+            "point_20": [20, "finger-joint"],
+            "point_21": [21, "finger-joint"],
+            "point_22": [22, "finger-joint"],
+            "point_23": [23, "finger-joint"],
+            "point_24": [24, "finger-joint"],
+            "point_25": [25, "finger-joint"],
+            "point_26": [26, "finger-joint"],
+            "point_27": [27, "finger-joint"],
+            "point_28": [28, "finger-joint"],
+            "point_29": [29, "finger-joint"],
+            "point_30": [30, "finger-joint"],
+            "point_31": [31, "finger-joint"],
+            "point_32": [32, "finger-joint"],
+            "point_33": [33, "finger-joint"],
+            "point_34": [34, "finger-joint"],
+            "point_35": [35, "finger-joint"],
+            "point_36": [36, "finger-joint"],
+            "point_37": [37, "finger-joint"],
+            "point_38": [38, "finger-joint"],
+            "point_39": [39, "finger-joint"],
+            "point_40": [40, "finger-joint"],
+            "point_41": [41, "finger-joint"],
+            "point_42": [42, "finger-joint"],
+            "point_43": [43, "finger-joint"],
+            "point_44": [44, "finger-joint"],
+            "point_45": [45, "finger-joint"],
+            "point_46": [46, "finger-joint"],
+            "point_47": [47, "finger-joint"],
+            "point_48": [48, "finger-joint"],
+            "point_49": [49, "finger-joint"],
+            "point_50": [50, "finger-joint"],
+            "point_51": [51, "finger-joint"],
+            "point_52": [52, "finger-joint"],
+            "point_53": [53, "finger-joint"],
+            "point_54": [54, "finger-joint"],
+            "point_55": [55, "finger-joint"],
+            "point_56": [56, "finger-joint"],
+            "point_57": [57, "finger-joint"],
+            "point_58": [58, "finger-joint"],
+            "point_59": [59, "finger-joint"],
+            "point_60": [60, "finger-joint"],
+            "point_61": [61, "finger-joint"],
+            "point_62": [62, "finger-joint"],
+            "point_63": [63, "finger-joint"],
+            "point_64": [64, "finger-joint"],
+            "point_65": [65, "finger-joint"],
+            "point_66": [66, "finger-joint"],
+            "point_67": [67, "finger-joint"],
+            "point_68": [68, "finger-joint"],
+            "point_69": [69, "finger-joint"],
+            "point_70": [70, "finger-joint"],
+            "point_71": [71, "finger-joint"],
+            "point_72": [72, "finger-joint"],
+            "point_73": [73, "finger-joint"],
+            "point_74": [74, "finger-joint"],
+            "point_75": [75, "finger-joint"],
+        }
+    )
+
+    right_full_skeleton = DexterousHandMotorsBusConfig(
+        port="right_full_skeleton",
+        motors={  
+            "point_1": [1, "finger-joint"],
+            "point_2": [2, "finger-joint"],
+            "point_3": [3, "finger-joint"],
+            "point_4": [4, "finger-joint"],
+            "point_5": [5, "finger-joint"],
+            "point_6": [6, "finger-joint"],
+            "point_7": [7, "finger-joint"],
+            "point_8": [8, "finger-joint"],
+            "point_9": [9, "finger-joint"],
+            "point_10": [10, "finger-joint"],
+            "point_11": [11, "finger-joint"],
+            "point_12": [12, "finger-joint"],
+            "point_13": [13, "finger-joint"],
+            "point_14": [14, "finger-joint"],
+            "point_15": [15, "finger-joint"],
+            "point_16": [16, "finger-joint"],
+            "point_17": [17, "finger-joint"],
+            "point_18": [18, "finger-joint"],
+            "point_19": [19, "finger-joint"],
+            "point_20": [20, "finger-joint"],
+            "point_21": [21, "finger-joint"],
+            "point_22": [22, "finger-joint"],
+            "point_23": [23, "finger-joint"],
+            "point_24": [24, "finger-joint"],
+            "point_25": [25, "finger-joint"],
+            "point_26": [26, "finger-joint"],
+            "point_27": [27, "finger-joint"],
+            "point_28": [28, "finger-joint"],
+            "point_29": [29, "finger-joint"],
+            "point_30": [30, "finger-joint"],
+            "point_31": [31, "finger-joint"],
+            "point_32": [32, "finger-joint"],
+            "point_33": [33, "finger-joint"],
+            "point_34": [34, "finger-joint"],
+            "point_35": [35, "finger-joint"],
+            "point_36": [36, "finger-joint"],
+            "point_37": [37, "finger-joint"],
+            "point_38": [38, "finger-joint"],
+            "point_39": [39, "finger-joint"],
+            "point_40": [40, "finger-joint"],
+            "point_41": [41, "finger-joint"],
+            "point_42": [42, "finger-joint"],
+            "point_43": [43, "finger-joint"],
+            "point_44": [44, "finger-joint"],
+            "point_45": [45, "finger-joint"],
+            "point_46": [46, "finger-joint"],
+            "point_47": [47, "finger-joint"],
+            "point_48": [48, "finger-joint"],
+            "point_49": [49, "finger-joint"],
+            "point_50": [50, "finger-joint"],
+            "point_51": [51, "finger-joint"],
+            "point_52": [52, "finger-joint"],
+            "point_53": [53, "finger-joint"],
+            "point_54": [54, "finger-joint"],
+            "point_55": [55, "finger-joint"],
+            "point_56": [56, "finger-joint"],
+            "point_57": [57, "finger-joint"],
+            "point_58": [58, "finger-joint"],
+            "point_59": [59, "finger-joint"],
+            "point_60": [60, "finger-joint"],
+            "point_61": [61, "finger-joint"],
+            "point_62": [62, "finger-joint"],
+            "point_63": [63, "finger-joint"],
+            "point_64": [64, "finger-joint"],
+            "point_65": [65, "finger-joint"],
+            "point_66": [66, "finger-joint"],
+            "point_67": [67, "finger-joint"],
+            "point_68": [68, "finger-joint"],
+            "point_69": [69, "finger-joint"],
+            "point_70": [70, "finger-joint"],
+            "point_71": [71, "finger-joint"],
+            "point_72": [72, "finger-joint"],
+            "point_73": [73, "finger-joint"],
+            "point_74": [74, "finger-joint"],
+            "point_75": [75, "finger-joint"],
+        }
+    )
+
+    # 手腕追踪器配置  
+    left_wrist_tracker = DexterousHandMotorsBusConfig(
+        port="left_wrist",
+        motors={  
+            "pose_x": [1, "wrist-pose"],  
+            "pose_y": [2, "wrist-pose"],   
+            "pose_z": [3, "wrist-pose"],  
+            "rotation_quat_x": [4, "wrist-pose"],  
+            "rotation_quat_y": [5, "wrist-pose"],  
+            "rotation_quat_z": [6, "wrist-pose"],  
+            "rotation_quat_w": [7, "wrist-pose"],  
+        }  
+    )
+      
+    right_wrist_tracker = DexterousHandMotorsBusConfig(
+        port="right_wrist",
+        motors={  
+            "pose_x": [1, "wrist-pose"],  
+            "pose_y": [2, "wrist-pose"],  
+            "pose_z": [3, "wrist-pose"],   
+            "rotation_quat_x": [4, "wrist-pose"],  
+            "rotation_quat_y": [5, "wrist-pose"],  
+            "rotation_quat_z": [6, "wrist-pose"],  
+            "rotation_quat_w": [7, "wrist-pose"],  
+        }  
+    )
+   
+    head_tracker = DexterousHandMotorsBusConfig(
+        port="head",
+        motors={  
+            "pose_x": [1, "head-pose"],  
+            "pose_y": [2, "head-pose"],  
+            "pose_z": [3, "head-pose"],  
+            "rotation_quat_x": [4, "head-pose"],  
+            "rotation_quat_y": [5, "head-pose"],  
+            "rotation_quat_z": [6, "head-pose"],  
+            "rotation_quat_w": [7, "head-pose"],  
+        }  
+    )
+
+    # 手指传感器配置 - 每手6个关节  
+    left_finger_sensors = DexterousHandMotorsBusConfig(
+        port="left_finger",
+        motors={  
+            "joint_1": [1, "finger-joint"],  
+            "joint_2": [2, "finger-joint"],  
+            "joint_3": [3, "finger-joint"],  
+            "joint_4": [4, "finger-joint"],
+            "joint_5": [5, "finger-joint"], 
+            "joint_6": [6, "finger-joint"],
+            "joint_7": [7, "finger-joint"],  
+            "joint_8": [8, "finger-joint"],  
+            "joint_9": [9, "finger-joint"],  
+            "joint_10": [10, "finger-joint"],
+            "joint_11": [11, "finger-joint"], 
+            "joint_12": [12, "finger-joint"],
+            "joint_13": [13, "finger-joint"],  
+            "joint_14": [14, "finger-joint"],  
+            "joint_15": [15, "finger-joint"],    
+        }  
+    )
+      
+    right_finger_sensors = DexterousHandMotorsBusConfig(
+        port="right_finger",
+        motors={  
+            "joint_1": [1, "finger-joint"],  
+            "joint_2": [2, "finger-joint"],  
+            "joint_3": [3, "finger-joint"],  
+            "joint_4": [4, "finger-joint"],
+            "joint_5": [5, "finger-joint"], 
+            "joint_6": [6, "finger-joint"],
+            "joint_7": [7, "finger-joint"],  
+            "joint_8": [8, "finger-joint"],  
+            "joint_9": [9, "finger-joint"],  
+            "joint_10": [10, "finger-joint"],
+            "joint_11": [11, "finger-joint"], 
+            "joint_12": [12, "finger-joint"],
+            "joint_13": [13, "finger-joint"],  
+            "joint_14": [14, "finger-joint"],  
+            "joint_15": [15, "finger-joint"],  
+        }  
+    )
+
+    cameras: dict[str, CameraConfig] = field(  
+        default_factory=lambda: {  
+            "image_top": IntelRealSenseCameraConfig( 
+                serial_number=337122071807,  
+                fps=30,  
+                width=640,  
+                height=480,  
+            ),
+            "image_top_depth": OpenCVCameraConfig( 
+                camera_index=2,  
+                fps=30,  
+                width=640,  
+                height=480,  
+            ),
+            "image_left": OpenCVCameraConfig(
+                camera_index=0,
+                fps=30,
+                width=640,
+                height=480,
+            ),
+            "image_right": OpenCVCameraConfig(
+                camera_index=1,
+                fps=30,
+                width=640,
+                height=480,
+            )
+        }  
+    )
+
+    microphones: dict[str, int] = field(  
+        default_factory=lambda: {}  
+    )  
+    use_videos: bool = False
+    mock: bool = False
